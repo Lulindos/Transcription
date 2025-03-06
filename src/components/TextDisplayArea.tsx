@@ -1,8 +1,7 @@
 import React, { useState } from "react";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "./ui/tabs";
 import { Button } from "./ui/button";
-import { Separator } from "./ui/separator";
-import { Copy, Volume2 } from "lucide-react";
+import { Copy, Volume2, ArrowLeftRight } from "lucide-react";
 import {
   Tooltip,
   TooltipContent,
@@ -34,9 +33,9 @@ const TextDisplayArea = ({
   const [viewMode, setViewMode] = useState<"split" | "tabbed">("split");
 
   return (
-    <div className="w-full h-full bg-white rounded-3xl shadow-md border border-gray-100 p-4">
+    <div className="w-full h-full">
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-xl font-semibold text-gray-900">
+        <h2 className="text-lg font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-secondary">
           Transcription & Translation
         </h2>
         <div className="flex space-x-2">
@@ -44,8 +43,8 @@ const TextDisplayArea = ({
             variant={viewMode === "split" ? "default" : "outline"}
             className={
               viewMode === "split"
-                ? "bg-[#ff6600] hover:bg-[#e65c00] shadow-[0_0_10px_rgba(255,102,0,0.3)]"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
+                ? "elevenlabs-button"
+                : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700"
             }
             size="sm"
             onClick={() => setViewMode("split")}
@@ -56,8 +55,8 @@ const TextDisplayArea = ({
             variant={viewMode === "tabbed" ? "default" : "outline"}
             className={
               viewMode === "tabbed"
-                ? "bg-[#ff6600] hover:bg-[#e65c00] shadow-[0_0_10px_rgba(255,102,0,0.3)]"
-                : "bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
+                ? "elevenlabs-button"
+                : "bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700"
             }
             size="sm"
             onClick={() => setViewMode("tabbed")}
@@ -68,13 +67,20 @@ const TextDisplayArea = ({
       </div>
 
       {viewMode === "split" ? (
-        <div className="grid grid-cols-2 gap-4 h-[calc(100%-3rem)]">
-          <TextPanel
-            title={`Original (${originalLanguage})`}
-            text={originalText}
-            onPlay={onPlayOriginal}
-            onCopy={onCopyOriginal}
-          />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-[calc(100%-3rem)]">
+          <div className="relative">
+            <TextPanel
+              title={`Original (${originalLanguage})`}
+              text={originalText}
+              onPlay={onPlayOriginal}
+              onCopy={onCopyOriginal}
+            />
+            <div className="absolute -right-2 top-1/2 transform -translate-y-1/2 z-10 hidden md:block">
+              <div className="elevenlabs-icon-bg">
+                <ArrowLeftRight className="h-4 w-4" />
+              </div>
+            </div>
+          </div>
           <TextPanel
             title={`Translation (${targetLanguage})`}
             text={translatedText}
@@ -84,14 +90,14 @@ const TextDisplayArea = ({
         </div>
       ) : (
         <Tabs defaultValue="original" className="h-[calc(100%-3rem)]">
-          <TabsList className="grid w-full grid-cols-2 mb-4 bg-gray-100">
+          <TabsList className="grid w-full grid-cols-2 mb-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
             <TabsTrigger
               value="original"
-              className="data-[state=active]:bg-[#ff6600] data-[state=active]:text-white"
+              className="data-[state=active]:bg-primary data-[state=active]:text-white rounded-l-lg"
             >{`Original (${originalLanguage})`}</TabsTrigger>
             <TabsTrigger
               value="translated"
-              className="data-[state=active]:bg-[#ff6600] data-[state=active]:text-white"
+              className="data-[state=active]:bg-secondary data-[state=active]:text-white rounded-r-lg"
             >{`Translation (${targetLanguage})`}</TabsTrigger>
           </TabsList>
           <TabsContent value="original" className="h-full">
@@ -134,15 +140,15 @@ const TextPanel = ({
   showTitle = true,
 }: TextPanelProps) => {
   return (
-    <div className="flex flex-col h-full bg-white rounded-2xl p-3 border border-gray-100">
+    <div className="flex flex-col h-full bg-white dark:bg-gray-900 rounded-xl p-3 border border-gray-100 dark:border-gray-800 shadow-sm">
       {showTitle && (
         <div className="flex justify-between items-center mb-2">
-          <h3 className="text-sm font-medium text-gray-600">{title}</h3>
+          <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300">{title}</h3>
         </div>
       )}
       <div className="relative flex-grow overflow-auto">
-        <div className="p-3 bg-white rounded-2xl h-full overflow-y-auto shadow-inner border border-gray-100">
-          <p className="text-gray-700 whitespace-pre-wrap">{text}</p>
+        <div className="p-3 bg-gray-50 dark:bg-gray-800 rounded-xl h-full overflow-y-auto shadow-inner border border-gray-100 dark:border-gray-700">
+          <p className="text-gray-700 dark:text-gray-300 whitespace-pre-wrap">{text}</p>
         </div>
       </div>
       <div className="flex justify-end space-x-2 mt-2">
@@ -153,7 +159,7 @@ const TextPanel = ({
                 variant="outline"
                 size="icon"
                 onClick={onPlay}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
+                className="bg-gray-100 dark:bg-gray-800 hover:bg-primary hover:text-white dark:hover:bg-primary dark:text-gray-300 border-gray-200 dark:border-gray-700 transition-all duration-300"
               >
                 <Volume2 className="h-4 w-4" />
               </Button>
@@ -171,7 +177,7 @@ const TextPanel = ({
                 variant="outline"
                 size="icon"
                 onClick={onCopy}
-                className="bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
+                className="bg-gray-100 dark:bg-gray-800 hover:bg-primary hover:text-white dark:hover:bg-primary dark:text-gray-300 border-gray-200 dark:border-gray-700 transition-all duration-300"
               >
                 <Copy className="h-4 w-4" />
               </Button>

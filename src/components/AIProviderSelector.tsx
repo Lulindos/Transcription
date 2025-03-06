@@ -10,7 +10,7 @@ import {
   SelectValue,
 } from "./ui/select";
 import { Separator } from "./ui/separator";
-import { Brain, Sparkles, Check } from "lucide-react";
+import { Brain, Sparkles, Check, ExternalLink } from "lucide-react";
 import { Button } from "./ui/button";
 
 interface AIProviderSelectorProps {
@@ -65,7 +65,27 @@ const AIProviderSelector = ({
                   value={provider.id}
                   className="text-gray-700 hover:text-[#ff6600] hover:bg-gray-100"
                 >
-                  {provider.name}
+                  <div className="flex items-center gap-2">
+                    {provider.id === "openai" && (
+                      <Sparkles className="h-4 w-4 text-green-500" />
+                    )}
+                    {provider.id === "google" && (
+                      <Brain className="h-4 w-4 text-blue-500" />
+                    )}
+                    {provider.id === "elevenlabs" && (
+                      <Sparkles className="h-4 w-4 text-purple-500" />
+                    )}
+                    {provider.id === "anthropic" && (
+                      <Brain className="h-4 w-4 text-pink-500" />
+                    )}
+                    {provider.id === "azure" && (
+                      <Brain className="h-4 w-4 text-blue-600" />
+                    )}
+                    {provider.id === "deepseek" && (
+                      <Brain className="h-4 w-4 text-yellow-500" />
+                    )}
+                    {provider.name}
+                  </div>
                 </SelectItem>
               ))}
             </SelectContent>
@@ -75,7 +95,7 @@ const AIProviderSelector = ({
             <Label htmlFor="api-key" className="text-sm text-gray-700">
               Chave de API
             </Label>
-            <div className="relative">
+            <div className="flex space-x-2">
               <input
                 id="api-key"
                 type="password"
@@ -84,11 +104,28 @@ const AIProviderSelector = ({
                   onApiKeyChange(e.target.value);
                   localStorage.setItem("apiKey", e.target.value);
                 }}
-                className="w-full h-10 px-3 py-2 border border-gray-200 rounded-md bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-[#ff6600] focus:border-transparent"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                 placeholder="Insira sua chave de API"
               />
-              <Sparkles className="absolute right-3 top-2.5 h-5 w-5 text-gray-400" />
+              {selectedProvider === "google" && (
+                <Button
+                  variant="outline"
+                  className="h-10 px-3 flex items-center gap-1 text-blue-600 border-blue-200 hover:bg-blue-50"
+                  onClick={() =>
+                    window.open("https://aistudio.google.com/app/apikey", "_blank")
+                  }
+                >
+                  <ExternalLink size={14} />
+                  <span>Get API Key</span>
+                </Button>
+              )}
             </div>
+            {selectedProvider === "google" && (
+              <p className="text-xs text-gray-500 mt-1">
+                Obtenha sua chave de API do Google AI Studio para usar o Gemini
+                para transcrição e tradução.
+              </p>
+            )}
           </div>
 
           <Separator className="my-2" />

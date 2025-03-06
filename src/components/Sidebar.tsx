@@ -7,11 +7,7 @@ import { Switch } from "./ui/switch";
 import { Slider } from "./ui/slider";
 import {
   Settings,
-  History,
-  Bookmark,
-  FileText,
-  ChevronLeft,
-  ChevronRight,
+  Home,
   Mic,
   Volume2,
   Languages,
@@ -19,7 +15,21 @@ import {
   Save,
   Trash2,
   Download,
+  MessageSquare,
+  FileText,
+  Headphones,
+  Music,
+  Film,
+  Bell,
+  ChevronLeft,
+  ChevronRight,
+  ChevronDown,
+  Plus,
+  User,
+  Code,
+  Key,
 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SidebarProps {
   collapsed?: boolean;
@@ -45,7 +55,12 @@ const Sidebar = ({
   const [autoSave, setAutoSave] = useState(true);
   const [micSensitivity, setMicSensitivity] = useState(75);
   const [saveInterval, setSaveInterval] = useState(5);
-  const [activeTab, setActiveTab] = useState<string>("audio");
+  const [activeTab, setActiveTab] = useState<string>("home");
+  const [expandedSections, setExpandedSections] = useState({
+    settings: true,
+    voices: true,
+    apis: true,
+  });
 
   const handleNoiseReductionChange = (checked: boolean) => {
     setNoiseReduction(checked);
@@ -73,523 +88,259 @@ const Sidebar = ({
     onSaveIntervalChange(value);
   };
 
-  // Mock recent transcriptions data
-  const recentTranscriptions = [
-    { id: "1", title: "Reunião de Equipe", date: new Date(), duration: 1800 },
+  const toggleSection = (section: string) => {
+    setExpandedSections({
+      ...expandedSections,
+      [section]: !expandedSections[section],
+    });
+  };
+
+  const menuItems = [
     {
-      id: "2",
-      title: "Entrevista",
-      date: new Date(Date.now() - 86400000),
-      duration: 2400,
+      type: "item",
+      id: "home",
+      label: "Home",
+      icon: <Home className="h-5 w-5" />,
     },
     {
-      id: "3",
-      title: "Notas Pessoais",
-      date: new Date(Date.now() - 259200000),
-      duration: 600,
+      type: "section",
+      id: "voices",
+      label: "Voices",
+      icon: <Mic className="h-5 w-5" />,
+      items: [
+        {
+          id: "my-voices",
+          label: "My Voices",
+          icon: <Headphones className="h-5 w-5" />,
+        },
+        {
+          id: "voice-library",
+          label: "Voice Library",
+          icon: <Music className="h-5 w-5" />,
+        },
+        {
+          id: "voice-settings",
+          label: "Voice Settings",
+          icon: <Settings className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      type: "section",
+      id: "apis",
+      label: "APIs",
+      icon: <Code className="h-5 w-5" />,
+      items: [
+        {
+          id: "api-keys",
+          label: "API Keys",
+          icon: <Key className="h-5 w-5" />,
+        },
+        {
+          id: "api-usage",
+          label: "API Usage",
+          icon: <FileText className="h-5 w-5" />,
+        },
+        {
+          id: "api-documentation",
+          label: "Documentation",
+          icon: <MessageSquare className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      type: "section",
+      id: "settings",
+      label: "Settings",
+      icon: <Settings className="h-5 w-5" />,
+      items: [
+        {
+          id: "audio-settings",
+          label: "Audio Settings",
+          icon: <Volume2 className="h-5 w-5" />,
+        },
+        {
+          id: "language-settings",
+          label: "Language",
+          icon: <Languages className="h-5 w-5" />,
+        },
+        {
+          id: "save-settings",
+          label: "Auto Save",
+          icon: <Save className="h-5 w-5" />,
+        },
+      ],
+    },
+    {
+      type: "item",
+      id: "notifications",
+      label: "Notifications",
+      icon: <Bell className="h-5 w-5" />,
+      isBottom: true,
+    },
+    {
+      type: "item",
+      id: "profile",
+      label: "My Profile",
+      subLabel: "Account Settings",
+      icon: (
+        <div className="w-6 h-6 rounded-full bg-black flex items-center justify-center text-white text-xs font-bold">
+          <User className="h-4 w-4" />
+        </div>
+      ),
+      isBottom: true,
     },
   ];
 
-  const formatDate = (date: Date) => {
-    const now = new Date();
-    const diffDays = Math.floor(
-      (now.getTime() - date.getTime()) / (1000 * 60 * 60 * 24),
-    );
-
-    if (diffDays === 0) return "Hoje";
-    if (diffDays === 1) return "Ontem";
-    if (diffDays < 7) return `${diffDays} dias atrás`;
-    return date.toLocaleDateString();
-  };
-
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")}`;
+  const renderMenuItem = (item: any, index: number) => {
+    if (item.type === "section" && !collapsed) {
+      return (
+        <div key={item.id} className={cn(item.isBottom ? "mt-auto" : "")}>
+          {item.label && (
+            <div className="flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition-colors duration-200">
+              <div className="flex items-center">
+                {item.icon && <span className="mr-2 text-gray-500">{item.icon}</span>}
+                <span className="text-sm font-medium text-gray-600">{item.label}</span>
+              </div>
+              {item.items && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 p-0 text-gray-500 hover:text-gray-700 hover:bg-transparent"
+                  onClick={() => toggleSection(item.id)}
+                >
+                  <ChevronDown
+                    className={`h-4 w-4 transition-transform duration-200 ${
+                      expandedSections[item.id] ? "transform rotate-180" : ""
+                    }`}
+                  />
+                </Button>
+              )}
+            </div>
+          )}
+          {expandedSections[item.id] &&
+            item.items &&
+            item.items.map((subItem: any, subIndex: number) => (
+              <Button
+                key={subItem.id}
+                variant="ghost"
+                className={cn(
+                  "w-full justify-start px-8 py-2 h-10 rounded-none transition-colors duration-200",
+                  activeTab === subItem.id
+                    ? "bg-gray-100 text-black font-medium"
+                    : "text-gray-600 hover:bg-gray-50 hover:text-black"
+                )}
+                onClick={() => setActiveTab(subItem.id)}
+              >
+                <div className="flex items-center w-full">
+                  {subItem.icon && <span className="text-gray-500">{subItem.icon}</span>}
+                  <span className="ml-3 text-sm">{subItem.label}</span>
+                  {subItem.hasArrow && (
+                    <ChevronRight className="ml-auto h-4 w-4" />
+                  )}
+                  {subItem.hasPlus && (
+                    <Plus className="ml-auto h-4 w-4 text-gray-400" />
+                  )}
+                </div>
+              </Button>
+            ))}
+          {index < menuItems.length - 1 && !item.isBottom && (
+            <div className="mx-4 my-2 border-t border-gray-100"></div>
+          )}
+        </div>
+      );
+    } else if (item.type === "item") {
+      return (
+        <Button
+          key={item.id}
+          variant="ghost"
+          className={cn(
+            collapsed
+              ? "w-full justify-center p-2 h-12 rounded-none transition-colors duration-200"
+              : "w-full justify-start px-4 py-3 h-12 rounded-none transition-colors duration-200",
+            activeTab === item.id
+              ? "bg-gray-100 text-black font-medium"
+              : "text-gray-600 hover:bg-gray-50 hover:text-black",
+            item.isBottom ? "mt-auto" : ""
+          )}
+          onClick={() => setActiveTab(item.id)}
+        >
+          <div
+            className={cn(
+              "flex items-center",
+              collapsed ? "w-auto" : "w-full"
+            )}
+          >
+            {item.icon}
+            {!collapsed && (
+              <>
+                <div className="ml-3 flex flex-col items-start">
+                  <span className="text-sm font-medium">{item.label}</span>
+                  {item.subLabel && (
+                    <span className="text-xs text-gray-500">
+                      {item.subLabel}
+                    </span>
+                  )}
+                </div>
+                {item.hasPlus && (
+                  <Plus className="ml-auto h-4 w-4 text-gray-400" />
+                )}
+                {item.hasArrow && (
+                  <ChevronRight className="ml-auto h-4 w-4" />
+                )}
+              </>
+            )}
+          </div>
+        </Button>
+      );
+    } else if (item.type === "section" && collapsed) {
+      // Render just the icon for sections when collapsed
+      return (
+        <Button
+          key={item.id}
+          variant="ghost"
+          className={cn(
+            "w-full justify-center p-2 h-12 rounded-none transition-colors duration-200",
+            activeTab === item.id
+              ? "bg-gray-100 text-black font-medium"
+              : "text-gray-600 hover:bg-gray-50 hover:text-black",
+            item.isBottom ? "mt-auto" : ""
+          )}
+          onClick={() => setActiveTab(item.id)}
+        >
+          {item.icon}
+        </Button>
+      );
+    }
+    return null;
   };
 
   return (
     <div
-      className={`h-full bg-white border-r border-gray-100 transition-all duration-300 ${collapsed ? "w-16" : "w-72"}`}
+      className={cn(
+        "h-full bg-white border-r border-gray-100 transition-all duration-300 flex flex-col shadow-sm",
+        collapsed ? "w-16" : "w-64"
+      )}
     >
-      <div className="flex flex-col h-full">
-        <div className="p-4 flex items-center justify-between">
-          {!collapsed && (
-            <h2 className="text-lg font-semibold text-gray-900">
-              Configurações
-            </h2>
+      <div className="p-4 flex items-center justify-between border-b border-gray-100">
+        {!collapsed && (
+          <div className="font-bold text-xl tracking-tight">Transcription</div>
+        )}
+        <Button
+          variant="outline"
+          size="icon"
+          onClick={onToggleCollapse}
+          className={cn(
+            "ml-auto border-gray-200 rounded-full hover:bg-gray-50 transition-colors duration-200",
+            collapsed ? "mx-auto" : ""
           )}
-          <Button
-            variant="ghost"
-            size="icon"
-            onClick={onToggleCollapse}
-            className="ml-auto text-gray-500 hover:text-[#ff6600]"
-          >
-            {collapsed ? (
-              <ChevronRight className="h-5 w-5" />
-            ) : (
-              <ChevronLeft className="h-5 w-5" />
-            )}
-          </Button>
-        </div>
+        >
+          {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+        </Button>
+      </div>
 
-        <Separator />
-
-        <div className="flex-1 overflow-auto p-4">
-          {collapsed ? (
-            <div className="flex flex-col items-center space-y-6">
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "audio" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("audio")}
-              >
-                <Mic className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "language" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("language")}
-              >
-                <Languages className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "voice" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("voice")}
-              >
-                <Volume2 className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "history" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("history")}
-              >
-                <History className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "saved" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("saved")}
-              >
-                <Bookmark className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "export" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("export")}
-              >
-                <FileText className="h-5 w-5" />
-              </Button>
-              <Button
-                variant="ghost"
-                size="icon"
-                className={`w-10 h-10 ${activeTab === "settings" ? "bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]" : "text-gray-500 hover:text-[#ff6600]"}`}
-                onClick={() => setActiveTab("settings")}
-              >
-                <Settings className="h-5 w-5" />
-              </Button>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              {/* Audio Settings Section */}
-              {activeTab === "audio" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <Mic className="h-4 w-4" /> Configurações de Áudio
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="noise-reduction"
-                        className="text-sm text-gray-700"
-                      >
-                        Redução de Ruído
-                      </Label>
-                      <Switch
-                        id="noise-reduction"
-                        checked={noiseReduction}
-                        onCheckedChange={handleNoiseReductionChange}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label
-                          htmlFor="mic-sensitivity"
-                          className="text-sm text-gray-700"
-                        >
-                          Sensibilidade do Microfone
-                        </Label>
-                        <span className="text-xs text-gray-500">
-                          {micSensitivity}%
-                        </span>
-                      </div>
-                      <Slider
-                        id="mic-sensitivity"
-                        value={[micSensitivity]}
-                        max={100}
-                        step={1}
-                        onValueChange={(vals) =>
-                          handleMicSensitivityChange(vals[0])
-                        }
-                      />
-                    </div>
-
-                    <div className="pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                      >
-                        <Mic className="h-4 w-4 mr-2" />
-                        Testar Microfone
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Language Settings */}
-              {activeTab === "language" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <Languages className="h-4 w-4" /> Configurações de Idioma
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="auto-detect"
-                        className="text-sm text-gray-700"
-                      >
-                        Detectar Idioma Automaticamente
-                      </Label>
-                      <Switch
-                        id="auto-detect"
-                        checked={autoDetectLanguage}
-                        onCheckedChange={handleAutoDetectLanguageChange}
-                      />
-                    </div>
-
-                    <div className="pt-2 space-y-2">
-                      <Label className="text-sm text-gray-700">
-                        Idiomas Favoritos
-                      </Label>
-                      <div className="flex flex-wrap gap-2">
-                        {["🇧🇷 PT", "🇺🇸 EN", "🇪🇸 ES"].map((lang) => (
-                          <div
-                            key={lang}
-                            className="px-3 py-1 bg-[#ff6600]/10 text-[#ff6600] rounded-full text-xs flex items-center"
-                          >
-                            {lang}
-                          </div>
-                        ))}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="rounded-full h-6 w-6 p-0 bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                        >
-                          +
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* History & Saved */}
-              {activeTab === "history" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <History className="h-4 w-4" /> Histórico & Salvos
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="auto-save"
-                        className="text-sm text-gray-700"
-                      >
-                        Salvar Automaticamente
-                      </Label>
-                      <Switch
-                        id="auto-save"
-                        checked={autoSave}
-                        onCheckedChange={handleAutoSaveChange}
-                      />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label
-                        htmlFor="save-interval"
-                        className="text-sm text-gray-700"
-                      >
-                        Intervalo de Salvamento
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          id="save-interval"
-                          type="number"
-                          min="1"
-                          max="60"
-                          value={saveInterval}
-                          onChange={handleSaveIntervalChange}
-                          className="w-20 bg-white border-gray-200 text-gray-800"
-                        />
-                        <span className="text-sm text-gray-500">minutos</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Recent Transcriptions */}
-              {activeTab === "saved" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <Clock className="h-4 w-4" /> Transcrições Recentes
-                  </h3>
-                  <div className="space-y-2">
-                    {recentTranscriptions.map((item, index) => (
-                      <div
-                        key={item.id}
-                        className="flex flex-col p-3 hover:bg-gray-100 hover:text-gray-900 rounded-md cursor-pointer border border-gray-200 bg-white"
-                      >
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm font-medium text-gray-800">
-                            {item.title}
-                          </span>
-                          <span className="text-xs text-gray-500">
-                            {formatDate(item.date)}
-                          </span>
-                        </div>
-                        <div className="flex items-center justify-between mt-2">
-                          <span className="text-xs text-gray-500">
-                            {formatDuration(item.duration)}
-                          </span>
-                          <div className="flex space-x-1">
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-gray-500 hover:text-[#ff6600]"
-                            >
-                              <Save className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-gray-500 hover:text-[#ff6600]"
-                            >
-                              <Download className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="icon"
-                              className="h-6 w-6 text-destructive"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      className="w-full mt-2 bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                    >
-                      Ver Todas as Transcrições
-                    </Button>
-                  </div>
-                </div>
-              )}
-
-              {/* Voice Settings */}
-              {activeTab === "voice" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <Volume2 className="h-4 w-4" /> Síntese de Voz
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="voice-enabled"
-                        className="text-sm text-gray-700"
-                      >
-                        Ativar Síntese de Voz
-                      </Label>
-                      <Switch id="voice-enabled" checked={true} />
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label className="text-sm text-gray-700">
-                        Tipo de Voz
-                      </Label>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="justify-start bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                        >
-                          <span className="text-xs">🧑 Masculina</span>
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="justify-start bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]"
-                        >
-                          <span className="text-xs">👩 Feminina</span>
-                        </Button>
-                      </div>
-                    </div>
-
-                    <div className="space-y-2">
-                      <div className="flex items-center justify-between">
-                        <Label
-                          htmlFor="voice-speed"
-                          className="text-sm text-gray-700"
-                        >
-                          Velocidade da Fala
-                        </Label>
-                        <span className="text-xs text-gray-500">Normal</span>
-                      </div>
-                      <Slider
-                        id="voice-speed"
-                        value={[50]}
-                        max={100}
-                        step={1}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Export Settings */}
-              {activeTab === "export" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <FileText className="h-4 w-4" /> Exportação
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="include-translation"
-                        className="text-sm text-gray-700"
-                      >
-                        Incluir Tradução
-                      </Label>
-                      <Switch id="include-translation" checked={true} />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="include-timestamps"
-                        className="text-sm text-gray-700"
-                      >
-                        Incluir Marcadores de Tempo
-                      </Label>
-                      <Switch id="include-timestamps" checked={false} />
-                    </div>
-
-                    <div className="pt-2">
-                      <Label className="text-sm mb-2 block text-gray-700">
-                        Formato Padrão
-                      </Label>
-                      <div className="grid grid-cols-3 gap-2">
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-[#ff6600] text-white shadow-[0_0_10px_rgba(255,102,0,0.3)]"
-                        >
-                          PDF
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                        >
-                          TXT
-                        </Button>
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          className="bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                        >
-                          DOCX
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Settings */}
-              {activeTab === "settings" && (
-                <div className="space-y-4">
-                  <h3 className="text-sm font-medium flex items-center gap-2 text-gray-900">
-                    <Settings className="h-4 w-4" /> Configurações Gerais
-                  </h3>
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="auto-update"
-                        className="text-sm text-gray-700"
-                      >
-                        Atualizações Automáticas
-                      </Label>
-                      <Switch id="auto-update" checked={true} />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <Label
-                        htmlFor="analytics"
-                        className="text-sm text-gray-700"
-                      >
-                        Enviar Dados de Uso
-                      </Label>
-                      <Switch id="analytics" checked={false} />
-                    </div>
-
-                    <div className="pt-2">
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-                      >
-                        Limpar Todos os Dados
-                      </Button>
-                    </div>
-
-                    <div className="pt-1">
-                      <p className="text-xs text-gray-500 mt-2">
-                        Versão 1.0.0 • Última atualização: hoje
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-
-        <Separator />
-
-        <div className="p-4">
-          {!collapsed && (
-            <Button
-              variant="outline"
-              className="w-full bg-gray-100 hover:bg-gray-200 text-gray-800 border-gray-200"
-            >
-              <Settings className="h-4 w-4 mr-2" />
-              Configurações Avançadas
-            </Button>
-          )}
-        </div>
+      <div className="flex flex-col h-full overflow-y-auto py-2">
+        {menuItems.map(renderMenuItem)}
       </div>
     </div>
   );

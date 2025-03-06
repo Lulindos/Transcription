@@ -16,9 +16,9 @@ const ThemeToggle = () => {
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button
-          variant="ghost"
+          variant="outline"
           size="icon"
-          className="h-9 w-9 text-[#9c9ca4] hover:text-white"
+          className="border-black text-black dark:text-white dark:border-gray-700"
         >
           <Sun className="h-4 w-4 rotate-0 scale-100 transition-all dark:-rotate-90 dark:scale-0" />
           <Moon className="absolute h-4 w-4 rotate-90 scale-0 transition-all dark:rotate-0 dark:scale-100" />
@@ -27,25 +27,25 @@ const ThemeToggle = () => {
       </DropdownMenuTrigger>
       <DropdownMenuContent
         align="end"
-        className="bg-[#080808] border border-[#1d1d21]"
+        className="bg-white dark:bg-gray-950 border border-gray-200 dark:border-gray-800 rounded-xl shadow-lg"
       >
         <DropdownMenuItem
           onClick={() => setTheme("light")}
-          className="text-[#9c9ca4] hover:text-white hover:bg-[#1d1d21]"
+          className="text-black hover:text-black hover:bg-gray-100 rounded-lg my-1 cursor-pointer"
         >
           <Sun className="mr-2 h-4 w-4" />
           <span>Light</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setTheme("dark")}
-          className="text-[#9c9ca4] hover:text-white hover:bg-[#1d1d21]"
+          className="text-black dark:text-white hover:text-black hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg my-1 cursor-pointer"
         >
           <Moon className="mr-2 h-4 w-4" />
           <span>Dark</span>
         </DropdownMenuItem>
         <DropdownMenuItem
           onClick={() => setTheme("system")}
-          className="text-[#9c9ca4] hover:text-white hover:bg-[#1d1d21]"
+          className="text-black dark:text-white hover:text-black hover:bg-gray-100 dark:hover:bg-gray-800 rounded-lg my-1 cursor-pointer"
         >
           <Monitor className="mr-2 h-4 w-4" />
           <span>System</span>

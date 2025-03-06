@@ -48,31 +48,31 @@ const TranscriptionPanel = ({
   // Initialize source language based on originalLanguage prop
   const [sourceLanguage, setSourceLanguage] = useState(() => {
     if (originalLanguage === "English")
-      return { code: "en", name: "English", flag: "🇺🇸" };
+      return { code: "en", name: "English", flag: "" };
     if (originalLanguage === "Spanish")
-      return { code: "es", name: "Spanish", flag: "🇪🇸" };
+      return { code: "es", name: "Spanish", flag: "" };
     if (originalLanguage === "Portuguese")
-      return { code: "pt", name: "Portuguese", flag: "🇵🇹" };
+      return { code: "pt", name: "Portuguese", flag: "" };
     if (originalLanguage === "French")
-      return { code: "fr", name: "French", flag: "🇫🇷" };
+      return { code: "fr", name: "French", flag: "" };
     if (originalLanguage === "German")
-      return { code: "de", name: "German", flag: "🇩🇪" };
-    return { code: "en", name: originalLanguage, flag: "🇺🇸" };
+      return { code: "de", name: "German", flag: "" };
+    return { code: "en", name: originalLanguage, flag: "" };
   });
 
   // Initialize target language based on targetLanguage prop
   const [targetLang, setTargetLang] = useState(() => {
     if (targetLanguage === "English")
-      return { code: "en", name: "English", flag: "🇺🇸" };
+      return { code: "en", name: "English", flag: "" };
     if (targetLanguage === "Spanish")
-      return { code: "es", name: "Spanish", flag: "🇪🇸" };
+      return { code: "es", name: "Spanish", flag: "" };
     if (targetLanguage === "Portuguese")
-      return { code: "pt", name: "Portuguese", flag: "🇵🇹" };
+      return { code: "pt", name: "Portuguese", flag: "" };
     if (targetLanguage === "French")
-      return { code: "fr", name: "French", flag: "🇫🇷" };
+      return { code: "fr", name: "French", flag: "" };
     if (targetLanguage === "German")
-      return { code: "de", name: "German", flag: "🇩🇪" };
-    return { code: "es", name: targetLanguage, flag: "🇪🇸" };
+      return { code: "de", name: "German", flag: "" };
+    return { code: "es", name: targetLanguage, flag: "" };
   });
 
   const handlePlayOriginal = () => {
@@ -132,92 +132,98 @@ const TranscriptionPanel = ({
   };
 
   return (
-    <div className="w-full h-full bg-white p-6 rounded-3xl shadow-md border border-gray-100 flex flex-col gap-6">
+    <div className="w-full h-full bg-gradient-to-b from-white to-gray-50 dark:from-gray-900 dark:to-gray-950 p-6 rounded-3xl shadow-xl border border-gray-100 dark:border-gray-800 flex flex-col gap-6">
       <div className="flex flex-col items-center w-full">
-        <AudioVisualizer
-          isRecording={isRecording}
-          onRecordingStart={onRecordingStart}
-          onRecordingStop={onRecordingStop}
-          className="w-full max-w-5xl shadow-lg"
-          translatedText={translatedText}
-          showTranslationWave={true}
-        />
+        <div className="w-full max-w-5xl elevenlabs-card p-4">
+          <AudioVisualizer
+            isRecording={isRecording}
+            onRecordingStart={onRecordingStart}
+            onRecordingStop={onRecordingStop}
+            className="w-full"
+            translatedText={translatedText}
+            showTranslationWave={true}
+          />
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
         <div className="md:col-span-2">
-          <TextDisplayArea
-            originalText={originalText}
-            translatedText={translatedText}
-            originalLanguage={sourceLanguage.name}
-            targetLanguage={targetLang.name}
-            onPlayOriginal={handlePlayOriginal}
-            onPlayTranslated={handlePlayTranslated}
-            onCopyOriginal={handleCopyOriginal}
-            onCopyTranslated={handleCopyTranslated}
-          />
+          <div className="elevenlabs-card p-4 h-full">
+            <TextDisplayArea
+              originalText={originalText}
+              translatedText={translatedText}
+              originalLanguage={sourceLanguage.name}
+              targetLanguage={targetLang.name}
+              onPlayOriginal={handlePlayOriginal}
+              onPlayTranslated={handlePlayTranslated}
+              onCopyOriginal={handleCopyOriginal}
+              onCopyTranslated={handleCopyTranslated}
+            />
+          </div>
         </div>
 
         <div className="flex flex-col gap-6">
-          <AIProviderSelector
-            selectedProvider={selectedAIProvider}
-            apiKey={apiKey}
-            onProviderChange={setSelectedAIProvider}
-            onApiKeyChange={setApiKey}
-            className="mb-4"
-          />
+          <div className="elevenlabs-card p-4">
+            <AIProviderSelector
+              selectedProvider={selectedAIProvider}
+              apiKey={apiKey}
+              onProviderChange={setSelectedAIProvider}
+              onApiKeyChange={setApiKey}
+              className="mb-4"
+            />
 
-          <div className="space-y-4">
-            <div>
-              <h3 className="text-sm font-medium mb-2 text-gray-700">
-                Idioma Original
-              </h3>
-              <LanguageSelector
-                onLanguageChange={(lang) => {
-                  setSourceLanguage(lang);
-                  localStorage.setItem("sourceLanguage", JSON.stringify(lang));
-                }}
-                selectedLanguage={sourceLanguage}
-                className="w-full mb-4"
-              />
-            </div>
+            <div className="space-y-4 mt-4">
+              <div>
+                <h3 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Idioma Original
+                </h3>
+                <LanguageSelector
+                  onLanguageChange={(lang) => {
+                    setSourceLanguage(lang);
+                    localStorage.setItem("sourceLanguage", JSON.stringify(lang));
+                  }}
+                  selectedLanguage={sourceLanguage}
+                  className="w-full mb-4"
+                />
+              </div>
 
-            <div>
-              <h3 className="text-sm font-medium mb-2 text-gray-700">
-                Idioma de Tradução
-              </h3>
-              <LanguageSelector
-                onLanguageChange={(lang) => {
-                  setTargetLang(lang);
-                  onLanguageChange(lang);
-                  localStorage.setItem("targetLanguage", JSON.stringify(lang));
-                }}
-                selectedLanguage={targetLang}
-                className="w-full"
-              />
+              <div>
+                <h3 className="text-sm font-medium mb-2 text-gray-700 dark:text-gray-300">
+                  Idioma de Tradução
+                </h3>
+                <LanguageSelector
+                  onLanguageChange={(lang) => {
+                    setTargetLang(lang);
+                    onLanguageChange(lang);
+                    localStorage.setItem("targetLanguage", JSON.stringify(lang));
+                  }}
+                  selectedLanguage={targetLang}
+                  className="w-full"
+                />
+              </div>
             </div>
           </div>
 
-          <VoiceSynthesisPanel
-            isEnabled={voiceSynthesisEnabled}
-            selectedVoice={selectedVoice}
-            isPlaying={isPlaying}
-            volume={volume}
-            onToggle={handleVoiceToggle}
-            onVoiceChange={handleVoiceChange}
-            onPlayPause={handlePlayPause}
-            onVolumeChange={handleVolumeChange}
-          />
+          <div className="elevenlabs-card p-4">
+            <VoiceSynthesisPanel
+              enabled={voiceSynthesisEnabled}
+              selectedVoice={selectedVoice}
+              isPlaying={isPlaying}
+              volume={volume}
+              onToggle={handleVoiceToggle}
+              onVoiceChange={handleVoiceChange}
+              onPlayPause={handlePlayPause}
+              onVolumeChange={handleVolumeChange}
+            />
+          </div>
 
-          <ExportPanel
-            transcriptionText={originalText}
-            translationText={translatedText}
-            sourceLanguage={originalLanguage}
-            targetLanguage={targetLanguage}
-            recordingDuration={recordingDuration}
-            onExport={onExport}
-            onShare={onShare}
-          />
+          <div className="elevenlabs-card p-4">
+            <ExportPanel
+              onExport={onExport}
+              onShare={onShare}
+              recordingDuration={recordingDuration}
+            />
+          </div>
         </div>
       </div>
     </div>
