@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Volume2, Mic, Settings, Play, Pause, RefreshCw, FileText } from "lucide-react";
+import { Volume2, Mic, Settings, Play, Pause, RefreshCw, FileText, Radio } from "lucide-react";
 import LanguageSelector from "./LanguageSelector";
 import AIProviderSelector from "./AIProviderSelector";
 import { Textarea } from "./ui/textarea";
@@ -56,6 +56,7 @@ const Home = () => {
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isTranslating, setIsTranslating] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false);
+  const [realTimeNarration, setRealTimeNarration] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
@@ -71,6 +72,17 @@ const Home = () => {
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
   const [elapsedTime, setElapsedTime] = useState("00:00");
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
+
+  // Streaming translation buffer and cache
+  const [streamingBuffer, setStreamingBuffer] = useState<string[]>([]);
+  const translationCacheRef = useRef<Map<string, string>>(new Map());
+  const lastTranslationTimeRef = useRef<number>(0);
+  const translationQueueRef = useRef<string[]>([]);
+  const isTranslatingRef = useRef<boolean>(false);
+
+  // Speech queue management
+  const speechQueueRef = useRef<string[]>([]);
+  const isSpeakingRef = useRef<boolean>(false);
 
   // Effect to animate the visualizer even when not recording
   useEffect(() => {
@@ -309,6 +321,7 @@ const Home = () => {
         
         recognition.onresult = (event) => {
           let interimTranscript = '';
+          let currentInterimChunk = '';
           
           // Process results
           for (let i = event.resultIndex; i < event.results.length; i++) {
@@ -318,8 +331,21 @@ const Home = () => {
               finalTranscript += transcript + ' ';
               // Translate the final text
               translateText(transcript);
+              
+              // Reset the current interim chunk tracking
+              currentInterimChunkRef.current = '';
+              
+              // Clear the streaming buffer for this segment
+              setStreamingBuffer([]);
             } else {
               interimTranscript += transcript;
+              currentInterimChunk = transcript;
+              
+              // If real-time narration is enabled, handle streaming translation
+              if (realTimeNarration && currentInterimChunk.trim().length > 0) {
+                // Process the current chunk for streaming translation
+                processStreamingTranslation(currentInterimChunk);
+              }
             }
           }
           
@@ -385,10 +411,185 @@ const Home = () => {
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
     }
+    
+    // Clear speech queue when stopping recording
+    clearSpeechQueue();
   };
 
-  const translateText = async (text: string) => {
+  const processStreamingTranslation = (text: string) => {
+    if (!text || text.trim().length === 0) return;
+    
+    // Divide the text into logical segments
+    const segments = segmentText(text);
+    
+    // For each segment, check if we already have it in the cache or if it needs translation
+    segments.forEach(segment => {
+      if (segment.trim().length < 3) return; // Ignore very short segments
+      
+      // Check if we already have this translation in the cache
+      if (translationCacheRef.current.has(segment)) {
+        const cachedTranslation = translationCacheRef.current.get(segment);
+        if (cachedTranslation) {
+          // Use the cached translation immediately
+          updateStreamingTranslation(cachedTranslation, true);
+          return;
+        }
+      }
+      
+      // Check if it's a common phrase that we can translate locally
+      const quickTranslation = getQuickTranslation(segment, sourceLanguage.code, targetLang.code);
+      if (quickTranslation) {
+        // Use local quick translation
+        translationCacheRef.current.set(segment, quickTranslation);
+        updateStreamingTranslation(quickTranslation, true);
+        return;
+      }
+      
+      // Add to the translation queue
+      if (!translationQueueRef.current.includes(segment)) {
+        translationQueueRef.current.push(segment);
+        
+        // Process the queue if we're not translating at the moment
+        if (!isTranslatingRef.current) {
+          processTranslationQueue();
+        }
+      }
+    });
+  };
+
+  const processTranslationQueue = async () => {
+    if (translationQueueRef.current.length === 0 || isTranslatingRef.current) return;
+    
+    isTranslatingRef.current = true;
+    const segment = translationQueueRef.current.shift();
+    
+    if (segment) {
+      // Translate this segment
+      await translateText(segment, true);
+    }
+    
+    isTranslatingRef.current = false;
+    
+    // Continue processing the queue if there are still items
+    if (translationQueueRef.current.length > 0) {
+      processTranslationQueue();
+    }
+  };
+
+  const updateStreamingTranslation = (translation: string, speak: boolean = false) => {
+    setTranslatedText(prev => {
+      // If the previous text ends with ellipsis, replace it
+      if (prev.endsWith('...')) {
+        return prev.substring(0, prev.length - 3) + translation;
+      }
+      // Otherwise, append with a space
+      return prev ? prev + ' ' + translation : translation;
+    });
+    
+    // Speak the translated text if necessary
+    if (speak && realTimeNarration) {
+      speakTranslatedText(translation, true);
+    }
+  };
+
+  const segmentText = (text: string): string[] => {
+    // First try to divide by punctuation
+    const punctuationSegments = text.split(/([.!?;,])/);
+    
+    // If we have significant segments by punctuation, use them
+    if (punctuationSegments.length > 1) {
+      // Recombine punctuation with the previous text
+      const result: string[] = [];
+      for (let i = 0; i < punctuationSegments.length; i += 2) {
+        const segment = punctuationSegments[i];
+        const punctuation = punctuationSegments[i + 1] || '';
+        result.push(segment + punctuation);
+      }
+      return result.filter(s => s.trim().length > 0);
+    }
+    
+    // Otherwise, divide by words (groups of 5-7 words)
+    const words = text.trim().split(/\s+/);
+    if (words.length <= 7) return [text]; // If it's short enough, return the full text
+    
+    const result: string[] = [];
+    for (let i = 0; i < words.length; i += 5) {
+      const segment = words.slice(i, i + 5).join(' ');
+      if (segment.trim().length > 0) {
+        result.push(segment);
+      }
+    }
+    return result;
+  };
+
+  const getQuickTranslation = (text: string, sourceCode: string, targetCode: string): string | null => {
+    // Dictionary of common phrases for quick translation
+    const commonPhrases: Record<string, Record<string, Record<string, string>>> = {
+      'en': {
+        'es': {
+          'hello': 'hola',
+          'thank you': 'gracias',
+          'good morning': 'buenos días',
+          'good afternoon': 'buenas tardes',
+          'good evening': 'buenas noches',
+          'how are you': 'cómo estás',
+          'my name is': 'me llamo',
+          'please': 'por favor',
+          'sorry': 'lo siento',
+          'excuse me': 'disculpe',
+          'yes': 'sí',
+          'no': 'no',
+          'maybe': 'quizás',
+          'i understand': 'entiendo',
+          'i don\'t understand': 'no entiendo'
+        },
+        'pt': {
+          'hello': 'olá',
+          'thank you': 'obrigado',
+          'good morning': 'bom dia',
+          'good afternoon': 'boa tarde',
+          'good evening': 'boa noite',
+          'how are you': 'como vai você',
+          'my name is': 'meu nome é',
+          'please': 'por favor',
+          'sorry': 'desculpe',
+          'excuse me': 'com licença',
+          'yes': 'sim',
+          'no': 'não',
+          'maybe': 'talvez',
+          'i understand': 'eu entendo',
+          'i don\'t understand': 'eu não entendo'
+        }
+      }
+    };
+    
+    // Check if we have a quick translation for this language combination
+    if (commonPhrases[sourceCode]?.[targetCode]) {
+      const lowerText = text.toLowerCase().trim();
+      
+      // Check for an exact match
+      if (commonPhrases[sourceCode][targetCode][lowerText]) {
+        return commonPhrases[sourceCode][targetCode][lowerText];
+      }
+      
+      // Check if the text contains a common phrase
+      for (const [phrase, translation] of Object.entries(commonPhrases[sourceCode][targetCode])) {
+        if (lowerText.includes(phrase)) {
+          // Replace the common phrase with the translation
+          const regex = new RegExp(phrase, 'i');
+          return text.replace(regex, translation);
+        }
+      }
+    }
+    
+    return null;
+  };
+
+  const translateText = async (text: string, isInterim = false) => {
     if (!text || text.trim() === '') return;
+    
+    // Record the time of this translation
+    lastTranslationTimeRef.current = Date.now();
     
     if (!apiKey && selectedAIProvider === "google") {
       setTranslatedText("API key is required for translation. Please set your Google AI API key in the settings panel.");
@@ -397,6 +598,16 @@ const Home = () => {
     
     try {
       setIsTranslating(true);
+      
+      // For interim results, show a visual indicator
+      if (isInterim) {
+        setTranslatedText(prev => {
+          if (prev.endsWith('...')) {
+            return prev;
+          }
+          return prev ? prev + '...' : '...';
+        });
+      }
       
       // Use the translation service
       translationService.translate(
@@ -407,16 +618,27 @@ const Home = () => {
         },
         // Success callback
         (translatedText) => {
+          // Add to the translation cache
+          translationCacheRef.current.set(text, translatedText);
+          
           setTranslatedText(prev => {
-            // If previous text ends with "...", remove it to avoid duplication
-            if (prev.endsWith('...')) {
+            // If this is an interim result and we're getting a new final result, replace the interim indicator
+            if (isInterim && prev.endsWith('...')) {
+              const lastSentenceBreak = prev.lastIndexOf('. ');
+              if (lastSentenceBreak !== -1 && lastSentenceBreak > prev.length / 2) {
+                return prev.substring(0, lastSentenceBreak + 2) + translatedText;
+              }
               return translatedText;
             }
+            
+            // For final results, append normally
             return prev ? prev + ' ' + translatedText : translatedText;
           });
           
-          // Speak the translated text if not recording
-          if (!isRecording) {
+          // Speak the translated text if in real-time mode or if not recording
+          if (realTimeNarration) {
+            speakTranslatedText(translatedText, true);
+          } else if (!isRecording) {
             speakTranslatedText(translatedText);
           }
           
@@ -425,7 +647,9 @@ const Home = () => {
         // Error callback
         (error) => {
           console.error("Error translating text:", error);
-          setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
+          if (!isInterim) {
+            setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
+          }
           setIsTranslating(false);
         },
         // Pass the API key and selected provider
@@ -434,19 +658,40 @@ const Home = () => {
       );
     } catch (error) {
       console.error("Error translating text:", error);
-      setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
+      if (!isInterim) {
+        setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
+      }
       setIsTranslating(false);
     }
   };
 
-  const speakTranslatedText = (text: string) => {
-    // Stop any previous speech
-    if (speechSynthesis.speaking) {
-      speechSynthesis.cancel();
+  const speakTranslatedText = (text: string, isRealTime = false) => {
+    if (!text || text.trim() === '') return;
+    
+    // Add the text to the speech queue
+    speechQueueRef.current.push(text);
+    
+    // If not speaking, start the speech queue
+    if (!isSpeakingRef.current) {
+      processSpeechQueue();
     }
+  };
+  
+  // Function to process the speech queue
+  const processSpeechQueue = () => {
+    // If the queue is empty or already speaking, exit
+    if (speechQueueRef.current.length === 0 || isSpeakingRef.current) return;
+    
+    // Mark as speaking
+    isSpeakingRef.current = true;
+    setIsSpeaking(true);
+    
+    // Get the next text from the queue
+    const textToSpeak = speechQueueRef.current.shift() || '';
     
     // Create a new speech instance
-    const utterance = new SpeechSynthesisUtterance(text);
+    const utterance = new SpeechSynthesisUtterance(textToSpeak);
+    utterance.startTime = Date.now();
     speechSynthesisRef.current = utterance;
     
     // Configure the language
@@ -459,16 +704,66 @@ const Home = () => {
       utterance.voice = targetVoice;
     }
     
+    // Configure settings for real-time narration
+    if (realTimeNarration) {
+      // Faster rate to keep up with the speaker
+      utterance.rate = 1.5;
+      // Slightly lower volume to not compete with the original speaker
+      utterance.volume = 0.7;
+      // Pitch adjustment to differentiate from the original voice
+      utterance.pitch = 1.1;
+    }
+    
     // Events
-    utterance.onstart = () => setIsSpeaking(true);
-    utterance.onend = () => setIsSpeaking(false);
+    utterance.onend = () => {
+      // Mark as not speaking
+      isSpeakingRef.current = false;
+      setIsSpeaking(false);
+      
+      // Check if there are more items in the queue
+      if (speechQueueRef.current.length > 0) {
+        // Small delay to avoid overlap
+        setTimeout(() => {
+          processSpeechQueue();
+        }, 100);
+      }
+    };
+    
     utterance.onerror = (event) => {
       console.error("Speech synthesis error:", event);
+      isSpeakingRef.current = false;
       setIsSpeaking(false);
+      
+      // Continue with the next item in the queue even in case of error
+      if (speechQueueRef.current.length > 0) {
+        setTimeout(() => {
+          processSpeechQueue();
+        }, 100);
+      }
     };
     
     // Start speech
     speechSynthesis.speak(utterance);
+  };
+  
+  // Function to clear the speech queue (used when the user stops recording)
+  const clearSpeechQueue = () => {
+    speechQueueRef.current = [];
+    if (speechSynthesis.speaking) {
+      speechSynthesis.cancel();
+    }
+    isSpeakingRef.current = false;
+    setIsSpeaking(false);
+  };
+
+  const toggleRealTimeNarration = () => {
+    setRealTimeNarration(!realTimeNarration);
+    
+    // If enabling real-time narration and already recording,
+    // speak the current translated text to provide immediate feedback
+    if (!realTimeNarration && isRecording && translatedText) {
+      speakTranslatedText(translatedText, true);
+    }
   };
 
   const handlePlayAudio = () => {
@@ -692,9 +987,13 @@ const Home = () => {
                     <Play size={32} />
                   </Button>
                   <Button 
-                    className="w-16 h-16 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    className={`w-16 h-16 rounded-full ${realTimeNarration 
+                      ? "bg-gradient-to-r from-green-400 to-teal-500 text-white hover:from-green-500 hover:to-teal-600" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"}`}
+                    onClick={toggleRealTimeNarration}
+                    title={realTimeNarration ? "Real-time narration enabled" : "Enable real-time narration"}
                   >
-                    <RefreshCw size={32} />
+                    <Radio size={32} />
                   </Button>
                 </div>
                 
@@ -734,14 +1033,22 @@ const Home = () => {
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
                       <h3 className="text-lg font-medium">Translation ({targetLang.name})</h3>
-                      <Button 
-                        variant="ghost" 
-                        size="icon" 
-                        className={cn("rounded-full", isSpeaking && "text-orange-500")}
-                        onClick={() => speakTranslatedText(translatedText)}
-                      >
-                        <Volume2 size={18} />
-                      </Button>
+                      <div className="flex items-center">
+                        {realTimeNarration && (
+                          <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full mr-2 flex items-center">
+                            <span className={`w-2 h-2 rounded-full ${isSpeaking ? "bg-green-500 animate-pulse" : "bg-green-300"} mr-1`}></span>
+                            Real-time
+                          </span>
+                        )}
+                        <Button 
+                          variant="ghost" 
+                          size="icon" 
+                          className={cn("rounded-full", isSpeaking && "text-orange-500")}
+                          onClick={() => speakTranslatedText(translatedText)}
+                        >
+                          <Volume2 size={18} />
+                        </Button>
+                      </div>
                     </div>
                     <Textarea
                       value={translatedText}
@@ -821,3 +1128,9 @@ const Home = () => {
 };
 
 export default Home;
+
+declare global {
+  interface SpeechSynthesisUtterance {
+    startTime?: number;
+  }
+}
