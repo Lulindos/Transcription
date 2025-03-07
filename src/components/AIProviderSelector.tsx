@@ -171,7 +171,16 @@ const AIProviderSelector = ({
 
                 // Recarregar a página para aplicar as configurações
                 setTimeout(() => {
-                  window.location.reload();
+                  // Instead of reloading the page, just show a success message
+                  // This prevents the 404 error in Vercel deployments
+                  const successMessage = document.createElement("div");
+                  successMessage.className = "fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-md shadow-lg z-50";
+                  successMessage.innerText = "API Key saved successfully!";
+                  document.body.appendChild(successMessage);
+                  
+                  setTimeout(() => {
+                    document.body.removeChild(successMessage);
+                  }, 3000);
                 }, 1000);
               }}
               id="confirm-button"
