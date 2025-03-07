@@ -1,5 +1,5 @@
 import React from "react";
-import { Settings, Mic, Waveform } from "lucide-react";
+import { Settings, Waveform } from "lucide-react";
 import { Button } from "./ui/button";
 import {
   Tooltip,
@@ -21,8 +21,8 @@ const Header = ({
   return (
     <header className="w-full h-20 bg-white dark:bg-gray-950 border-b border-gray-100 dark:border-gray-900 px-6 flex items-center justify-between relative">
       <div className="flex items-center space-x-3">
-        <div className="bg-black w-12 h-12 rounded-full flex items-center justify-center">
-          <Mic className="h-5 w-5 text-white" />
+        <div className="h-12 flex items-center justify-center">
+          <img src="/Logo header 2.png" alt="Audio Transcription Logo" className="h-12 object-contain" />
         </div>
         <div>
           <h1 className="text-xl font-bold text-black dark:text-white">{title}</h1>

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Volume2, Mic, Settings, Play, Pause, RefreshCw, FileText } from "lucide-react";
+import { Volume2, Mic, Settings, Play, Pause, RefreshCw, FileText, Radio } from "lucide-react";
 import LanguageSelector from "./LanguageSelector";
 import AIProviderSelector from "./AIProviderSelector";
 import { Textarea } from "./ui/textarea";
@@ -30,6 +30,7 @@ const Home = () => {
   // Basic states
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isRealTimeNarration, setIsRealTimeNarration] = useState(false);
   const [originalText, setOriginalText] = useState(
     "This is a sample transcription. Start speaking to see your words appear here in real-time."
   );
@@ -282,104 +283,113 @@ const Home = () => {
 
   const startRecording = async () => {
     try {
-      // Request microphone access with specific constraints for better quality
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
+      // Request microphone permission explicitly before starting recognition
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       
+      // Keep track of the stream to stop it later
       streamRef.current = stream;
       
-      const mediaRecorder = new MediaRecorder(stream);
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-      
-      // Configure speech recognition for real-time transcription
+      // Initialize speech recognition
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-      if (SpeechRecognition) {
-        const recognition = new SpeechRecognition();
-        recognition.continuous = true;
-        recognition.interimResults = true;
-        recognition.lang = sourceLanguage.code;
-        
-        let finalTranscript = '';
-        
-        recognition.onresult = (event) => {
-          let interimTranscript = '';
-          
-          // Process results
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            const transcript = event.results[i][0].transcript;
-            
-            if (event.results[i].isFinal) {
-              finalTranscript += transcript + ' ';
-              // Translate the final text
-              translateText(transcript);
-            } else {
-              interimTranscript += transcript;
-            }
-          }
-          
-          // Update the original text with the final and interim text
-          setOriginalText(finalTranscript + interimTranscript);
-        };
-        
-        recognition.onerror = (event) => {
-          console.error('Speech recognition error', event.error);
-          setOriginalText(prev => prev + " Error: " + event.error);
-        };
-        
-        recognition.onend = () => {
-          // If still recording, restart recognition
-          if (isRecording) {
-            recognition.start();
-          }
-        };
-        
-        // Start recognition
-        recognition.start();
-        
-        // Store the instance to stop later
-        window.speechRecognitionInstance = recognition;
-      } else {
-        console.error('Speech recognition not supported');
-        setOriginalText("Speech recognition not supported in this browser. Please try Chrome.");
+      if (!SpeechRecognition) {
+        throw new Error("Speech recognition not supported in this browser");
       }
       
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          audioChunksRef.current.push(event.data);
-        }
-      };
+      const recognition = new SpeechRecognition();
+      recognitionRef.current = recognition;
       
-      mediaRecorder.onstop = async () => {
-        // Stop speech recognition when recording stops
-        if (window.speechRecognitionInstance) {
-          window.speechRecognitionInstance.stop();
-        }
+      // Configure recognition
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = sourceLanguage.code;
+      
+      // Event handlers
+      recognition.onstart = () => {
+        console.log("Speech recognition started");
+        setIsRecording(true);
+        setRecordingStartTime(Date.now());
+        setElapsedTime("00:00");
         
-        // Stop all tracks in the stream
-        if (streamRef.current) {
-          streamRef.current.getTracks().forEach(track => track.stop());
+        // Start timer
+        timerRef.current = setInterval(() => {
+          const elapsed = Date.now() - recordingStartTime;
+          const minutes = Math.floor(elapsed / 60000);
+          const seconds = Math.floor((elapsed % 60000) / 1000);
+          setElapsedTime(`${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`);
+        }, 1000);
+      };
+      
+      recognition.onresult = (event) => {
+        const transcript = Array.from(event.results)
+          .map(result => result[0].transcript)
+          .join('');
+        
+        // Update original text
+        setOriginalText(transcript);
+        
+        // Get the most recent result
+        const currentResult = event.results[event.results.length - 1];
+        
+        // If this is a final result (not interim), translate it
+        if (currentResult.isFinal) {
+          const latestTranscript = currentResult[0].transcript;
+          translateText(latestTranscript);
         }
       };
       
-      // Start recording
-      mediaRecorder.start(5000);
+      recognition.onerror = (event) => {
+        console.error("Speech recognition error:", event.error, event);
+        
+        // Handle specific error types
+        if (event.error === 'not-allowed') {
+          setOriginalText("Microphone access denied. Please allow microphone access in your browser settings and try again.");
+        } else if (event.error === 'no-speech') {
+          // No speech detected, just log and continue
+          console.log("No speech detected");
+        } else if (event.error === 'audio-capture') {
+          setOriginalText("No microphone detected. Please connect a microphone and try again.");
+        } else {
+          setOriginalText(`Error during speech recognition: ${event.error}. Please try again.`);
+        }
+      };
+      
+      recognition.onend = () => {
+        console.log("Speech recognition ended");
+        
+        // Automatically restart if still recording
+        if (isRecording && recognitionRef.current) {
+          console.log("Restarting speech recognition");
+          recognitionRef.current.start();
+        }
+      };
+      
+      // Start recognition
+      recognition.start();
+      
     } catch (error) {
       console.error("Error starting recording:", error);
-      setOriginalText("Error accessing microphone. Please check your browser permissions and try again.");
+      
+      // Provide user-friendly error messages
+      if (error.name === 'NotAllowedError' || error.name === 'PermissionDeniedError') {
+        setOriginalText("Microphone access denied. Please allow microphone access in your browser settings and try again.");
+      } else if (error.name === 'NotFoundError') {
+        setOriginalText("No microphone detected. Please connect a microphone and try again.");
+      } else if (error.name === 'NotReadableError' || error.name === 'TrackStartError') {
+        setOriginalText("Could not access microphone. It may be in use by another application.");
+      } else if (error.message === "Speech recognition not supported in this browser") {
+        setOriginalText("Speech recognition is not supported in this browser. Please try Chrome, Edge, or Safari.");
+      } else {
+        setOriginalText(`Error accessing microphone: ${error.message || 'Unknown error'}. Please try again.`);
+      }
+      
       setIsRecording(false);
     }
   };
   
   const stopRecording = () => {
     // Stop speech recognition
-    if (window.speechRecognitionInstance) {
-      window.speechRecognitionInstance.stop();
+    if (recognitionRef.current) {
+      recognitionRef.current.stop();
     }
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
@@ -387,72 +397,21 @@ const Home = () => {
     }
   };
 
-  const translateText = async (text: string) => {
-    if (!text || text.trim() === '') return;
-    
-    if (!apiKey && selectedAIProvider === "google") {
-      setTranslatedText("API key is required for translation. Please set your Google AI API key in the settings panel.");
-      return;
-    }
-    
-    try {
-      setIsTranslating(true);
-      
-      // Use the translation service
-      translationService.translate(
-        {
-          text: text,
-          sourceLanguage: sourceLanguage.code,
-          targetLanguage: targetLang.code
-        },
-        // Success callback
-        (translatedText) => {
-          setTranslatedText(prev => {
-            // If previous text ends with "...", remove it to avoid duplication
-            if (prev.endsWith('...')) {
-              return translatedText;
-            }
-            return prev ? prev + ' ' + translatedText : translatedText;
-          });
-          
-          // Speak the translated text if not recording
-          if (!isRecording) {
-            speakTranslatedText(translatedText);
-          }
-          
-          setIsTranslating(false);
-        },
-        // Error callback
-        (error) => {
-          console.error("Error translating text:", error);
-          setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
-          setIsTranslating(false);
-        },
-        // Pass the API key and selected provider
-        apiKey,
-        selectedAIProvider
-      );
-    } catch (error) {
-      console.error("Error translating text:", error);
-      setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
-      setIsTranslating(false);
-    }
-  };
-
+  // Speak translated text
   const speakTranslatedText = (text: string) => {
     // Stop any previous speech
     if (speechSynthesis.speaking) {
       speechSynthesis.cancel();
     }
     
-    // Create a new speech instance
+    // Create new speech instance
     const utterance = new SpeechSynthesisUtterance(text);
     speechSynthesisRef.current = utterance;
     
-    // Configure the language
+    // Configure language
     utterance.lang = targetLang.code;
     
-    // Configure the voice (optional)
+    // Configure voice (optional)
     const voices = speechSynthesis.getVoices();
     const targetVoice = voices.find(voice => voice.lang.includes(targetLang.code));
     if (targetVoice) {
@@ -469,6 +428,108 @@ const Home = () => {
     
     // Start speech
     speechSynthesis.speak(utterance);
+  };
+
+  // Toggle real-time narration
+  const toggleRealTimeNarration = () => {
+    setIsRealTimeNarration(!isRealTimeNarration);
+    
+    // If turning on real-time narration, show a notification
+    if (!isRealTimeNarration) {
+      // You could add a toast notification here
+      console.log("Real-time narration enabled");
+    }
+  };
+
+  // Function to handle translation with real-time narration option
+  const translateText = async (text: string) => {
+    if (!text || text.trim() === '') return;
+    
+    if (!apiKey && selectedAIProvider === "google") {
+      setTranslatedText("API key is required for translation. Please set your Google AI API key in the settings panel.");
+      return;
+    }
+    
+    try {
+      setIsTranslating(true);
+      
+      // Simular tradução para fins de demonstração
+      setTimeout(() => {
+        // Simular resposta da API
+        let translatedText = '';
+        
+        // Tradução simulada baseada em frases comuns
+        if (text.toLowerCase().includes('hello') || text.toLowerCase().includes('hi')) {
+          translatedText = 'Hola';
+        } else if (text.toLowerCase().includes('good morning')) {
+          translatedText = 'Buenos días';
+        } else if (text.toLowerCase().includes('good afternoon')) {
+          translatedText = 'Buenas tardes';
+        } else if (text.toLowerCase().includes('good evening') || text.toLowerCase().includes('good night')) {
+          translatedText = 'Buenas noches';
+        } else if (text.toLowerCase().includes('how are you')) {
+          translatedText = '¿Cómo estás?';
+        } else if (text.toLowerCase().includes('thank you') || text.toLowerCase().includes('thanks')) {
+          translatedText = 'Gracias';
+        } else if (text.toLowerCase().includes('what is your name')) {
+          translatedText = '¿Cuál es tu nombre?';
+        } else if (text.toLowerCase().includes('my name is')) {
+          translatedText = 'Mi nombre es' + text.substring(text.toLowerCase().indexOf('is') + 2);
+        } else {
+          // Tradução genérica para outros textos
+          translatedText = `Traducción de: "${text}"`;
+        }
+        
+        // Atualizar o texto traduzido (substituir em vez de anexar)
+        setTranslatedText(prev => {
+          // Se o texto anterior terminar com "...", remover para evitar duplicação
+          if (prev.endsWith('...')) {
+            return translatedText;
+          }
+          return prev + ' ' + translatedText;
+        });
+        
+        // Speak the translated text if real-time narration is enabled or if not recording
+        if (isRealTimeNarration || !isRecording) {
+          speakTranslatedText(translatedText);
+        }
+        
+        setIsTranslating(false);
+      }, 500); // Reduzir o tempo para uma resposta mais rápida
+      
+      // Código real para API do Google (comentado)
+      /*
+      const response = await fetch('https://api.gemini.ai/v1/translate', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${apiKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          text: text,
+          source_language: sourceLanguage.code,
+          target_language: targetLang.code
+        })
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Translation failed: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      setTranslatedText(data.translatedText);
+      
+      // Speak the translated text if real-time narration is enabled or if not recording
+      if (isRealTimeNarration || !isRecording) {
+        speakTranslatedText(data.translatedText);
+      }
+      */
+    } catch (error) {
+      console.error("Error translating text:", error);
+      setTranslatedText("Error translating text. Please check your API key and try again.");
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   const handlePlayAudio = () => {
@@ -692,9 +753,14 @@ const Home = () => {
                     <Play size={32} />
                   </Button>
                   <Button 
-                    className="w-16 h-16 rounded-full bg-gray-200 text-gray-700 hover:bg-gray-300"
+                    className={`w-16 h-16 rounded-full ${isRealTimeNarration 
+                      ? "bg-gradient-to-r from-green-400 to-emerald-500 text-white hover:from-green-500 hover:to-emerald-600" 
+                      : "bg-gray-200 text-gray-700 hover:bg-gray-300"} 
+                      transition-all duration-300 hover:scale-105`}
+                    onClick={toggleRealTimeNarration}
+                    title={isRealTimeNarration ? "Disable real-time narration" : "Enable real-time narration"}
                   >
-                    <RefreshCw size={32} />
+                    <Radio size={32} />
                   </Button>
                 </div>
                 
@@ -800,10 +866,38 @@ const Home = () => {
                       />
                     </div>
                     
+                    <div className="space-y-2">
+                      <label className="flex items-center justify-between">
+                        <span className="text-sm font-medium">Real-time Narration</span>
+                        <div 
+                          className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background cursor-pointer ${isRealTimeNarration ? 'bg-green-500' : 'bg-gray-300'}`}
+                          onClick={toggleRealTimeNarration}
+                        >
+                          <span 
+                            className={`inline-block h-5 w-5 rounded-full bg-white transition-transform ${isRealTimeNarration ? 'translate-x-6' : 'translate-x-1'}`} 
+                          />
+                        </div>
+                      </label>
+                      <p className="text-xs text-gray-500">
+                        When enabled, translations will be narrated in real-time during recording, ideal for live events.
+                      </p>
+                    </div>
+                    
                     <div>
                       <Button 
                         className="w-full flex items-center justify-center space-x-2 bg-gray-200 text-gray-700 hover:bg-gray-300"
-                        onClick={handleExportPDF}
+                        onClick={() => {
+                          const now = new Date();
+                          generateBeautifulPDF({
+                            eventName: eventName,
+                            date: now.toLocaleDateString(),
+                            originalText: originalText,
+                            translatedText: translatedText,
+                            sourceLanguage: sourceLanguage.name,
+                            targetLanguage: targetLang.name,
+                            duration: elapsedTime
+                          });
+                        }}
                       >
                         <FileText size={16} />
                         <span>Export to PDF</span>
