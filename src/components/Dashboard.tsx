@@ -2,12 +2,13 @@ import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { 
   Plus, Mic, FileAudio, FileText, Clock, User, 
-  Calendar, Headphones, Volume2, MessageSquare 
+  Calendar, Headphones, Volume2, MessageSquare, Upload 
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "./ui/dialog";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import AudioUploader from "./AudioUploader";
 
 interface DashboardProps {
   username?: string;
@@ -18,6 +19,7 @@ const Dashboard = ({ username = "User" }: DashboardProps) => {
   const [greeting, setGreeting] = useState("Good day");
   const [isNewEventModalOpen, setIsNewEventModalOpen] = useState(false);
   const [newEventName, setNewEventName] = useState("");
+  const [isAudioUploaderOpen, setIsAudioUploaderOpen] = useState(false);
   
   // Get time of day for greeting
   useEffect(() => {
@@ -46,7 +48,7 @@ const Dashboard = ({ username = "User" }: DashboardProps) => {
         navigate("/record");
         break;
       case "myAudios":
-        // Navigate to audios page
+        setIsAudioUploaderOpen(true);
         break;
       case "myPDFs":
         // Navigate to PDFs page
@@ -104,10 +106,10 @@ const Dashboard = ({ username = "User" }: DashboardProps) => {
           className="bg-gray-50 hover:bg-gray-100 rounded-xl p-6 cursor-pointer transition-colors duration-200 flex flex-col items-center justify-center text-center h-48"
         >
           <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-4">
-            <FileAudio className="h-6 w-6 text-orange-600" />
+            <Upload className="h-6 w-6 text-orange-600" />
           </div>
-          <h3 className="font-medium mb-1">My Audios</h3>
-          <p className="text-sm text-gray-500">Browse your audio recordings</p>
+          <h3 className="font-medium mb-1">Upload Audio</h3>
+          <p className="text-sm text-gray-500">Process and translate audio files</p>
         </div>
 
         <div 
@@ -213,6 +215,18 @@ const Dashboard = ({ username = "User" }: DashboardProps) => {
               Create Event
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Audio Uploader Modal */}
+      <Dialog open={isAudioUploaderOpen} onOpenChange={setIsAudioUploaderOpen}>
+        <DialogContent className="sm:max-w-[90vw] max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Upload Audio</DialogTitle>
+          </DialogHeader>
+          <div className="py-4">
+            <AudioUploader onClose={() => setIsAudioUploaderOpen(false)} />
+          </div>
         </DialogContent>
       </Dialog>
     </div>

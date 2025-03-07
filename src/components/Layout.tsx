@@ -5,7 +5,7 @@ import Header from "./Header";
 import Footer from "./Footer";
 
 const Layout = () => {
-  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(true);
 
   const toggleSidebar = () => {
     setSidebarCollapsed(!sidebarCollapsed);

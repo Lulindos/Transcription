@@ -43,7 +43,7 @@ const AIProviderSelector = ({
     >
       <CardHeader className="pb-2">
         <CardTitle className="text-lg font-medium text-gray-900 flex items-center gap-2">
-          <span className="text-[#513d2f]">Provedor de IA</span>
+          <span className="text-[#513d2f]">AI Provider</span>
         </CardTitle>
       </CardHeader>
       <CardContent>
@@ -93,7 +93,7 @@ const AIProviderSelector = ({
 
           <div className="space-y-2">
             <Label htmlFor="api-key" className="text-sm text-gray-700">
-              Chave de API
+              API Key
             </Label>
             <div className="flex space-x-2">
               <input
@@ -105,7 +105,7 @@ const AIProviderSelector = ({
                   localStorage.setItem("apiKey", e.target.value);
                 }}
                 className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                placeholder="Insira sua chave de API"
+                placeholder="Enter your API key"
               />
               {selectedProvider === "google" && (
                 <Button
@@ -121,10 +121,26 @@ const AIProviderSelector = ({
               )}
             </div>
             {selectedProvider === "google" && (
-              <p className="text-xs text-gray-500 mt-1">
-                Obtenha sua chave de API do Google AI Studio para usar o Gemini
-                para transcrição e tradução.
-              </p>
+              <div className="space-y-1">
+                <p className="text-xs text-gray-500 mt-1">
+                  Get your Google AI Studio API key to use Gemini for transcription and translation.
+                </p>
+                <p className="text-xs text-gray-500">
+                  1. Visit <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-blue-500 underline">Google AI Studio</a>
+                </p>
+                <p className="text-xs text-gray-500">
+                  2. Sign in with your Google account
+                </p>
+                <p className="text-xs text-gray-500">
+                  3. Click on "Get API Key" and create a new key
+                </p>
+                <p className="text-xs text-gray-500">
+                  4. Copy the key and paste it in the field above
+                </p>
+                <p className="text-xs text-gray-500 mt-2 font-semibold">
+                  Note: This app uses the Gemini 1.5 Pro model. Make sure you have access to this model in your Google AI Studio account.
+                </p>
+              </div>
             )}
           </div>
 
@@ -132,9 +148,7 @@ const AIProviderSelector = ({
 
           <div className="flex justify-between items-center">
             <p className="text-xs text-gray-500">
-              A chave de API é necessária para acessar os serviços de tradução
-              do provedor selecionado. Suas chaves são armazenadas localmente e
-              nunca compartilhadas.
+              The API key is required to access the translation services of the selected provider. Your keys are stored locally and never shared.
             </p>
             <Button
               onClick={() => {
@@ -151,7 +165,7 @@ const AIProviderSelector = ({
 
                   setTimeout(() => {
                     button.classList.remove("bg-green-500");
-                    button.innerHTML = "Confirmar";
+                    button.innerHTML = "Confirm";
                   }, 2000);
                 }
 
@@ -163,7 +177,7 @@ const AIProviderSelector = ({
               id="confirm-button"
               className="ml-2 bg-[#ff6600] hover:bg-[#e65c00] text-white text-xs px-3 py-1 rounded-md transition-colors"
             >
-              Confirmar
+              Confirm
             </Button>
           </div>
         </div>

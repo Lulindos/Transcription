@@ -11,7 +11,7 @@ function App() {
       <>
         <Routes>
           <Route element={<Layout />}>
-            <Route path="/" element={<Dashboard username="Pfymotion" />} />
+            <Route path="/" element={<Dashboard username="Cortex" />} />
             <Route path="/record" element={<Home />} />
           </Route>
         </Routes>

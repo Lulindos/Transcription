@@ -34,89 +34,88 @@ class TranslationService {
     }
 
     try {
-      // For demo purposes, use mock translation
-      console.log("Using mock translation for demo");
-      console.log(`Translating from ${sourceLanguage} to ${targetLanguage}`);
-      console.log(`Text to translate: ${text}`);
-
-      const mockResult = this.mockTranslate(
-        text,
-        sourceLanguage,
-        targetLanguage,
-      );
-
-      console.log(`Translation result: ${mockResult}`);
-      setTimeout(() => onSuccess(mockResult), 500); // Simulate API delay
-
-      // In a real implementation, we would use the API based on the provider
-      // The code below would be used instead of the mock
-      /*
-      console.log(
-        `Using ${provider} API for translation with key: ${apiKey.substring(0, 3)}...`,
-      );
-
       // Determine which API to use based on provider
       let translatedText = "";
 
-      switch (provider) {
-        case "openai":
-          translatedText = await this.translateWithOpenAI(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        case "deepseek":
-          translatedText = await this.translateWithDeepSeek(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        case "google":
-          translatedText = await this.translateWithGoogle(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        case "azure":
-          translatedText = await this.translateWithAzure(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        case "anthropic":
-          translatedText = await this.translateWithAnthropic(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        case "elevenlabs":
-          translatedText = await this.translateWithElevenLabs(
-            text,
-            sourceLanguage,
-            targetLanguage,
-            apiKey,
-          );
-          break;
-        default:
-          throw new Error(`Unsupported provider: ${provider}`);
-      }
+      // If we have an API key and a valid provider, use the real API
+      if (apiKey && provider) {
+        console.log(
+          `Using ${provider} API for translation with key: ${apiKey.substring(0, 3)}...`,
+        );
 
-      onSuccess(translatedText);
-      */
+        switch (provider) {
+          case "openai":
+            translatedText = await this.translateWithOpenAI(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          case "deepseek":
+            translatedText = await this.translateWithDeepSeek(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          case "google":
+            translatedText = await this.translateWithGoogle(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          case "azure":
+            translatedText = await this.translateWithAzure(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          case "anthropic":
+            translatedText = await this.translateWithAnthropic(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          case "elevenlabs":
+            translatedText = await this.translateWithElevenLabs(
+              text,
+              sourceLanguage,
+              targetLanguage,
+              apiKey,
+            );
+            break;
+          default:
+            console.log(`Unsupported provider: ${provider}, using mock translation`);
+            translatedText = this.mockTranslate(
+              text,
+              sourceLanguage,
+              targetLanguage,
+            );
+        }
+
+        onSuccess(translatedText);
+      } else {
+        // No API key or provider, use simulated translation
+        console.log("Using mock translation (no API key or provider)");
+        const mockResult = this.mockTranslate(
+          text,
+          sourceLanguage,
+          targetLanguage,
+        );
+        setTimeout(() => onSuccess(mockResult), 500); // Simulate API delay
+      }
     } catch (error) {
       console.error(`Translation failed: ${error}`);
       onError(`Translation failed: ${error}`);
-      // Fallback to mock translation in case of error
+      // Fallback to simulated translation in case of error
       const mockResult = this.mockTranslate(
         text,
         sourceLanguage,
@@ -166,6 +165,135 @@ class TranslationService {
     return data.choices[0].message.content.trim();
   }
 
+  // Google Gemini translation implementation
+  private async translateWithGoogle(
+    text: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    apiKey: string,
+  ): Promise<string> {
+    try {
+      // First try with Gemini 1.5 Pro
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Translate the following text from ${this.getLanguageName(sourceLanguage)} to ${this.getLanguageName(targetLanguage)}. Only return the translated text, nothing else: "${text}"`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        // If the model is not found, try with the standard gemini-pro model
+        if (errorData.error && errorData.error.code === 404) {
+          console.log("Gemini 1.5 Pro not available, falling back to Gemini Pro");
+          return this.translateWithGeminiPro(text, sourceLanguage, targetLanguage, apiKey);
+        }
+        throw new Error(
+          `Google Gemini API error: ${response.status} - ${JSON.stringify(errorData)}`
+        );
+      }
+
+      const data = await response.json();
+      
+      // Extract the translated text from the response
+      if (data.candidates && data.candidates.length > 0 && 
+          data.candidates[0].content && 
+          data.candidates[0].content.parts && 
+          data.candidates[0].content.parts.length > 0) {
+        let translatedText = data.candidates[0].content.parts[0].text;
+        
+        // Clean up possible quotes or additional formatting
+        translatedText = translatedText.replace(/^["']|["']$/g, '').trim();
+        return translatedText;
+      } else {
+        throw new Error("Could not extract translation from Gemini API response");
+      }
+    } catch (error) {
+      console.error("Error with Gemini 1.5 Pro:", error);
+      // Try with standard Gemini Pro as fallback
+      return this.translateWithGeminiPro(text, sourceLanguage, targetLanguage, apiKey);
+    }
+  }
+
+  // Fallback to standard Gemini Pro model
+  private async translateWithGeminiPro(
+    text: string,
+    sourceLanguage: string,
+    targetLanguage: string,
+    apiKey: string,
+  ): Promise<string> {
+    try {
+      const response = await fetch('https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-goog-api-key': apiKey
+        },
+        body: JSON.stringify({
+          contents: [
+            {
+              parts: [
+                {
+                  text: `Translate the following text from ${this.getLanguageName(sourceLanguage)} to ${this.getLanguageName(targetLanguage)}. Only return the translated text, nothing else: "${text}"`
+                }
+              ]
+            }
+          ],
+          generationConfig: {
+            temperature: 0.2,
+            topK: 40,
+            topP: 0.95,
+            maxOutputTokens: 1024,
+          }
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(
+          `Google Gemini Pro API error: ${response.status} - ${JSON.stringify(errorData)}`
+        );
+      }
+
+      const data = await response.json();
+      
+      if (data.candidates && data.candidates.length > 0 && 
+          data.candidates[0].content && 
+          data.candidates[0].content.parts && 
+          data.candidates[0].content.parts.length > 0) {
+        let translatedText = data.candidates[0].content.parts[0].text;
+        translatedText = translatedText.replace(/^["']|["']$/g, '').trim();
+        return translatedText;
+      } else {
+        // If all else fails, provide a mock translation with a warning
+        console.warn("Could not get translation from any Gemini model, using mock translation");
+        return `[Translation unavailable: ${text}]`;
+      }
+    } catch (error) {
+      console.error("Error with Gemini Pro fallback:", error);
+      // Last resort fallback - return original text with warning
+      return `[Translation unavailable: ${text}]`;
+    }
+  }
+
   // DeepSeek translation implementation
   private async translateWithDeepSeek(
     text: string,
@@ -207,18 +335,6 @@ class TranslationService {
 
     const data = await response.json();
     return data.choices[0].message.content.trim();
-  }
-
-  // Google translation implementation
-  private async translateWithGoogle(
-    text: string,
-    sourceLanguage: string,
-    targetLanguage: string,
-    apiKey: string,
-  ): Promise<string> {
-    // This would be the actual Google Translate API implementation
-    // For now, we'll use a mock
-    return this.mockTranslate(text, sourceLanguage, targetLanguage);
   }
 
   // Azure translation implementation
@@ -329,51 +445,51 @@ class TranslationService {
 
       // Common Portuguese phrases and their German translations
       if (normalizedText.includes("olá") || normalizedText.includes("ola")) {
-        return "Übersetzt: Hallo";
+        return "Translated: Hallo";
       } else if (normalizedText.includes("bom dia")) {
-        return "Übersetzt: Guten Morgen";
+        return "Translated: Guten Morgen";
       } else if (normalizedText.includes("boa tarde")) {
-        return "Übersetzt: Guten Tag";
+        return "Translated: Guten Tag";
       } else if (normalizedText.includes("boa noite")) {
-        return "Übersetzt: Gute Nacht";
+        return "Translated: Gute Nacht";
       } else if (
         normalizedText.includes("como vai") ||
         normalizedText.includes("como está") ||
         normalizedText.includes("tudo bem")
       ) {
-        return "Übersetzt: Wie geht es dir?";
+        return "Translated: Wie geht es dir?";
       } else if (
         normalizedText.includes("obrigado") ||
         normalizedText.includes("obrigada")
       ) {
-        return "Übersetzt: Danke";
+        return "Translated: Danke";
       } else if (normalizedText.includes("por favor")) {
-        return "Übersetzt: Bitte";
+        return "Translated: Bitte";
       } else if (normalizedText.includes("sim")) {
-        return "Übersetzt: Ja";
+        return "Translated: Ja";
       } else if (normalizedText.includes("não")) {
-        return "Übersetzt: Nein";
+        return "Translated: Nein";
       } else if (
         normalizedText.includes("você pode me ouvir") ||
         normalizedText.includes("pode me ouvir")
       ) {
-        return "Übersetzt: Kannst du mich hören?";
+        return "Translated: Kannst du mich hören?";
       } else if (normalizedText.includes("eu não entendo")) {
-        return "Übersetzt: Ich verstehe nicht";
+        return "Translated: Ich verstehe nicht";
       } else if (normalizedText.includes("ajuda")) {
-        return "Übersetzt: Hilfe";
+        return "Translated: Hilfe";
       } else if (
         normalizedText.includes("desculpe") ||
         normalizedText.includes("desculpa")
       ) {
-        return "Übersetzt: Entschuldigung";
+        return "Translated: Entschuldigung";
       } else if (
         normalizedText.includes("tchau") ||
         normalizedText.includes("adeus")
       ) {
-        return "Übersetzt: Auf Wiedersehen";
+        return "Translated: Auf Wiedersehen";
       } else if (normalizedText.includes("até logo")) {
-        return "Übersetzt: Bis später";
+        return "Translated: Bis später";
       }
 
       // More complex phrases
@@ -381,18 +497,18 @@ class TranslationService {
         normalizedText.includes("meu nome é") ||
         normalizedText.includes("me chamo")
       ) {
-        return "Übersetzt: Mein Name ist...";
+        return "Translated: Mein Name ist...";
       } else if (normalizedText.includes("quanto custa")) {
-        return "Übersetzt: Wie viel kostet das?";
+        return "Translated: Wie viel kostet das?";
       } else if (
         normalizedText.includes("onde fica") ||
         normalizedText.includes("onde está")
       ) {
-        return "Übersetzt: Wo ist...?";
+        return "Translated: Wo ist...?";
       } else if (normalizedText.includes("que horas são")) {
-        return "Übersetzt: Wie spät ist es?";
+        return "Translated: Wie spät ist es?";
       } else if (normalizedText.includes("preciso de ajuda")) {
-        return "Übersetzt: Ich brauche Hilfe";
+        return "Translated: Ich brauche Hilfe";
       }
 
       // Try to extract meaningful parts from longer text
@@ -401,27 +517,27 @@ class TranslationService {
           normalizedText.includes("teste") ||
           normalizedText.includes("testando")
         ) {
-          return "Übersetzt: Dies ist ein Test";
+          return "Translated: Dies ist ein Test";
         } else if (
           normalizedText.includes("falar") ||
           normalizedText.includes("falando")
         ) {
-          return "Übersetzt: Ich spreche...";
+          return "Translated: Ich spreche...";
         } else if (
           normalizedText.includes("ouvir") ||
           normalizedText.includes("escutar")
         ) {
-          return "Übersetzt: Ich höre...";
+          return "Translated: Ich höre...";
         } else if (
           normalizedText.includes("entender") ||
           normalizedText.includes("compreender")
         ) {
-          return "Übersetzt: Ich verstehe...";
+          return "Translated: Ich verstehe...";
         }
       }
 
       // Generic fallback for Portuguese to German
-      return "Übersetzt: Ich habe eine Nachricht auf Portugiesisch erhalten und antworte auf Deutsch.";
+      return "Translated: Ich habe eine Nachricht auf Portugiesisch erhalten und antworte auf Deutsch.";
     }
 
     // For other language combinations, use the existing logic
@@ -432,20 +548,20 @@ class TranslationService {
         normalizedText.includes("hello") &&
         normalizedText.includes("can you hear me")
       ) {
-        return "Traducido: Hola, ¿puedes oírme? ¿puedes oírme cuando vamos?";
+        return "Translated: Hola, ¿puedes oírme? ¿puedes oírme cuando vamos?";
       } else if (normalizedText.includes("hello")) {
-        return "Traducido: Hola";
+        return "Translated: Hola";
       } else if (normalizedText.includes("how are you")) {
-        return "Traducido: ¿Cómo estás?";
+        return "Translated: ¿Cómo estás?";
       } else if (normalizedText.includes("thank you")) {
-        return "Traducido: Gracias";
+        return "Translated: Gracias";
       } else if (normalizedText.includes("good morning")) {
-        return "Traducido: Buenos días";
+        return "Translated: Buenos días";
       } else if (normalizedText.includes("can you hear me")) {
-        return "Traducido: ¿Puedes oírme?";
+        return "Translated: ¿Puedes oírme?";
       } else {
         // For any other text, create a completely different translation
-        return "Traducido: Esta es una traducción de ejemplo para demostrar la funcionalidad.";
+        return "Translated: This is a sample translation to demonstrate functionality.";
       }
     } else if (
       normalizedTarget === "pt" ||
@@ -455,19 +571,19 @@ class TranslationService {
         normalizedText.includes("hello") &&
         normalizedText.includes("can you hear me")
       ) {
-        return "Traduzido: Olá, você pode me ouvir? você pode me ouvir quando vamos?";
+        return "Translated: Olá, você pode me ouvir? você pode me ouvir quando vamos?";
       } else if (normalizedText.includes("hello")) {
-        return "Traduzido: Olá";
+        return "Translated: Olá";
       } else if (normalizedText.includes("how are you")) {
-        return "Traduzido: Como vai você?";
+        return "Translated: Como vai você?";
       } else if (normalizedText.includes("thank you")) {
-        return "Traduzido: Obrigado";
+        return "Translated: Obrigado";
       } else if (normalizedText.includes("good morning")) {
-        return "Traduzido: Bom dia";
+        return "Translated: Bom dia";
       } else if (normalizedText.includes("can you hear me")) {
-        return "Traduzido: Você pode me ouvir?";
+        return "Translated: Você pode me ouvir?";
       } else {
-        return "Traduzido: Esta é uma tradução de exemplo para demonstrar a funcionalidade.";
+        return "Translated: Esta é uma tradução de exemplo para demonstrar a funcionalidade.";
       }
     } else if (
       normalizedTarget === "fr" ||
@@ -477,19 +593,19 @@ class TranslationService {
         normalizedText.includes("hello") &&
         normalizedText.includes("can you hear me")
       ) {
-        return "Traduit: Bonjour, pouvez-vous m'entendre? pouvez-vous m'entendre quand nous partons?";
+        return "Translated: Bonjour, pouvez-vous m'entendre? pouvez-vous m'entendre quand nous partons?";
       } else if (normalizedText.includes("hello")) {
-        return "Traduit: Bonjour";
+        return "Translated: Bonjour";
       } else if (normalizedText.includes("how are you")) {
-        return "Traduit: Comment allez-vous?";
+        return "Translated: Comment allez-vous?";
       } else if (normalizedText.includes("thank you")) {
-        return "Traduit: Merci";
+        return "Translated: Merci";
       } else if (normalizedText.includes("good morning")) {
-        return "Traduit: Bonjour";
+        return "Translated: Bonjour";
       } else if (normalizedText.includes("can you hear me")) {
-        return "Traduit: Pouvez-vous m'entendre?";
+        return "Translated: Pouvez-vous m'entendre?";
       } else {
-        return "Traduit: Ceci est une traduction d'exemple pour démontrer la fonctionnalité.";
+        return "Translated: Ceci est une traduction d'exemple pour démontrer la fonctionnalité.";
       }
     } else if (
       normalizedTarget === "de" ||
@@ -499,19 +615,19 @@ class TranslationService {
         normalizedText.includes("hello") &&
         normalizedText.includes("can you hear me")
       ) {
-        return "Übersetzt: Hallo, kannst du mich hören? Kannst du mich hören, wenn wir gehen?";
+        return "Translated: Hallo, kannst du mich hören? Kannst du mich hören, wenn wir gehen?";
       } else if (normalizedText.includes("hello")) {
-        return "Übersetzt: Hallo";
+        return "Translated: Hallo";
       } else if (normalizedText.includes("how are you")) {
-        return "Übersetzt: Wie geht es dir?";
+        return "Translated: Wie geht es dir?";
       } else if (normalizedText.includes("thank you")) {
-        return "Übersetzt: Danke";
+        return "Translated: Danke";
       } else if (normalizedText.includes("good morning")) {
-        return "Übersetzt: Guten Morgen";
+        return "Translated: Guten Morgen";
       } else if (normalizedText.includes("can you hear me")) {
-        return "Übersetzt: Kannst du mich hören?";
+        return "Translated: Kannst du mich hören?";
       } else {
-        return "Übersetzt: Dies ist eine Beispielübersetzung, um die Funktionalität zu demonstrieren.";
+        return "Translated: Dies ist eine Beispielübersetzung, um die Funktionalität zu demonstrieren.";
       }
     }
 

@@ -5,8 +5,10 @@ import AIProviderSelector from "./AIProviderSelector";
 import { Textarea } from "./ui/textarea";
 import { Button } from "./ui/button";
 import { cn } from "../lib/utils";
+import translationService from "../services/translationService";
+import { generateBeautifulPDF } from "../utils/pdfExport";
 
-// Declaração de tipos para Web Speech API
+// Declaration of types for Web Speech API
 declare global {
   interface Window {
     SpeechRecognition: any;
@@ -15,38 +17,38 @@ declare global {
   }
 }
 
-// Interface para idiomas
+// Interface for languages
 interface Language {
   code: string;
   name: string;
 }
 
 const Home = () => {
-  // Estado do evento
+  // Event state
   const [eventName] = useState(localStorage.getItem("currentEventName") || "New Recording");
   
-  // Estados básicos
+  // Basic states
   const [isRecording, setIsRecording] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
   const [originalText, setOriginalText] = useState(
     "This is a sample transcription. Start speaking to see your words appear here in real-time."
   );
   const [translatedText, setTranslatedText] = useState(
-    "Esta é uma transcrição de exemplo. Comece a falar para ver suas palavras aparecerem aqui em tempo real."
+    "Esta es una transcripción de ejemplo. Comience a hablar para ver sus palabras aparecer aquí en tiempo real."
   );
   
-  // Idiomas
+  // Languages
   const [sourceLanguage, setSourceLanguage] = useState<Language>({
     name: "English",
     code: "en"
   });
   
   const [targetLang, setTargetLang] = useState<Language>({
-    name: "Portuguese",
-    code: "pt"
+    name: "Spanish",
+    code: "es"
   });
 
-  // API de IA
+  // AI API
   const [selectedAIProvider, setSelectedAIProvider] = useState(
     localStorage.getItem("aiProvider") || "google"
   );
@@ -57,8 +59,9 @@ const Home = () => {
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const speechSynthesisRef = useRef<SpeechSynthesisUtterance | null>(null);
+  const streamRef = useRef<MediaStream | null>(null);
 
-  // Visualizador de áudio
+  // Audio visualizer
   const [audioData, setAudioData] = useState<number[]>(Array(64).fill(5));
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const animationRef = useRef<number>();
@@ -66,34 +69,34 @@ const Home = () => {
   const analyserRef = useRef<AnalyserNode | null>(null);
   const dataArrayRef = useRef<Uint8Array | null>(null);
   const sourceRef = useRef<MediaStreamAudioSourceNode | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
   const [elapsedTime, setElapsedTime] = useState("00:00");
   const [recordingStartTime, setRecordingStartTime] = useState<number | null>(null);
 
-  // Efeito para animar o visualizador mesmo quando não está gravando
+  // Effect to animate the visualizer even when not recording
   useEffect(() => {
-    if (!isRecording) {
+    // Only animate when not recording and not speaking
+    if (!isRecording && !isSpeaking) {
       const interval = setInterval(() => {
-        // Criar uma animação ultra suave com movimento de onda
+        // Create an ultra-smooth wave animation
         const newData = audioData.map((value, index) => {
-          // Combinar múltiplas ondas senoidais para um efeito mais orgânico
+          // Combine multiple sine waves for a more organic effect
           const wave1 = Math.sin(Date.now() / 800 + index / 8) * 4;
           const wave2 = Math.sin(Date.now() / 1200 + index / 12) * 3;
           const wave3 = Math.sin(Date.now() / 600 + index / 5) * 2;
           const combinedWave = wave1 + wave2 + wave3 + 8;
           
-          // Adicionar um pouco de aleatoriedade muito sutil
+          // Add a very subtle randomness
           const random = Math.random() * 1.5;
           return Math.max(2, combinedWave + random);
         });
         setAudioData(newData);
-      }, 30); // Atualização ainda mais frequente para máxima fluidez
+      }, 30); // More frequent updates for maximum fluidity
       
       return () => clearInterval(interval);
     }
-  }, [isRecording, audioData]);
+  }, [isRecording, isSpeaking, audioData]);
 
-  // Efeito para desenhar o visualizador
+  // Effect to draw the visualizer
   useEffect(() => {
     const canvas = canvasRef.current;
     if (canvas) {
@@ -104,58 +107,58 @@ const Home = () => {
     }
   }, [audioData]);
 
-  // Função para desenhar o visualizador
+  // Function to draw the visualizer
   const drawVisualizer = (
     ctx: CanvasRenderingContext2D,
     width: number,
     height: number,
     data: number[]
   ) => {
-    // Limpar o canvas
+    // Clear the canvas
     ctx.clearRect(0, 0, width, height);
     
-    // Configurar fundo com gradiente sutil
+    // Set up a subtle gradient background
     const bgGradient = ctx.createLinearGradient(0, 0, 0, height);
     bgGradient.addColorStop(0, "#FFFFFF");
     bgGradient.addColorStop(1, "#F8F9FA");
     ctx.fillStyle = bgGradient;
     ctx.fillRect(0, 0, width, height);
     
-    // Configurar gradiente laranja mais vibrante e suave
+    // Set up a vibrant orange gradient
     const gradient = ctx.createLinearGradient(0, 0, 0, height);
-    gradient.addColorStop(0, "rgba(255, 149, 0, 0.7)");  // Laranja claro
-    gradient.addColorStop(0.5, "rgba(255, 94, 58, 0.8)"); // Laranja médio
-    gradient.addColorStop(1, "rgba(255, 45, 85, 0.9)");  // Laranja escuro/rosa
+    gradient.addColorStop(0, "rgba(255, 149, 0, 0.7)");  // Light orange
+    gradient.addColorStop(0.5, "rgba(255, 94, 58, 0.8)"); // Medium orange
+    gradient.addColorStop(1, "rgba(255, 45, 85, 0.9)");  // Dark orange/pink
     
-    // Configurar sombra para efeito de brilho suave
+    // Set up a shadow for a soft glow effect
     ctx.shadowColor = "rgba(255, 149, 0, 0.4)";
     ctx.shadowBlur = 15;
     ctx.shadowOffsetX = 0;
     ctx.shadowOffsetY = 0;
     
-    // Calcular pontos para curva Bezier suave
+    // Calculate points for a smooth Bezier curve
     const points = [];
     const centerY = height / 2;
-    const maxAmplitude = height / 3; // Limitar a amplitude para não ficar muito extremo
+    const maxAmplitude = height / 3; // Limit the amplitude to avoid extreme values
     
-    // Gerar pontos para a curva
+    // Generate points for the curve
     for (let i = 0; i < data.length; i++) {
       const x = (i / (data.length - 1)) * width;
-      const normalizedValue = Math.min(1, data[i] / 30); // Normalizar entre 0 e 1
+      const normalizedValue = Math.min(1, data[i] / 30); // Normalize between 0 and 1
       const y = centerY + (normalizedValue * maxAmplitude);
       points.push({ x, y });
     }
     
-    // Desenhar a onda principal com curvas Bezier
+    // Draw the main wave with Bezier curves
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     
-    // Adicionar pontos de controle para suavizar a curva
+    // Add control points to smooth the curve
     for (let i = 0; i < points.length - 1; i++) {
       const current = points[i];
       const next = points[i + 1];
       
-      // Calcular pontos de controle para curva Bezier
+      // Calculate control points for Bezier curve
       const cp1x = current.x + (next.x - current.x) / 3;
       const cp1y = current.y;
       const cp2x = current.x + 2 * (next.x - current.x) / 3;
@@ -164,17 +167,17 @@ const Home = () => {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
     }
     
-    // Completar o caminho para formar uma área preenchida
+    // Complete the path to form a filled area
     ctx.lineTo(width, centerY);
     ctx.lineTo(width, height);
     ctx.lineTo(0, height);
     ctx.closePath();
     
-    // Preencher com gradiente
+    // Fill with gradient
     ctx.fillStyle = gradient;
     ctx.fill();
     
-    // Desenhar a linha da onda com um traço mais grosso
+    // Draw the wave line with a thicker stroke
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     
@@ -190,14 +193,14 @@ const Home = () => {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, next.y);
     }
     
-    // Configurar estilo da linha
+    // Set up the line style
     ctx.strokeStyle = "rgba(255, 94, 58, 0.9)";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.lineJoin = "round";
     ctx.stroke();
     
-    // Desenhar a onda espelhada (mais sutil)
+    // Draw the mirrored wave (more subtle)
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     
@@ -205,7 +208,7 @@ const Home = () => {
       const current = points[i];
       const next = points[i + 1];
       
-      // Espelhar os pontos Y em relação ao centro
+      // Mirror the Y points around the center
       const mirrorCurrentY = centerY - (current.y - centerY) * 0.5;
       const mirrorNextY = centerY - (next.y - centerY) * 0.5;
       
@@ -217,29 +220,29 @@ const Home = () => {
       ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, next.x, mirrorNextY);
     }
     
-    // Configurar estilo da linha espelhada (mais sutil)
+    // Set up the mirrored line style (more subtle)
     ctx.strokeStyle = "rgba(255, 94, 58, 0.4)";
     ctx.lineWidth = 2;
     ctx.stroke();
     
-    // Adicionar pontos de destaque animados nos picos
+    // Add animated highlight points at the peaks
     const time = Date.now() / 1000;
     for (let i = 1; i < points.length - 1; i++) {
       const prev = points[i - 1];
       const current = points[i];
       const next = points[i + 1];
       
-      // Detectar picos locais
+      // Detect local peaks
       if (current.y > prev.y && current.y > next.y) {
         const pulseSize = 2 + Math.sin(time * 2 + i / 3) * 1;
         
-        // Desenhar círculo com brilho
+        // Draw a circle with glow
         ctx.beginPath();
         ctx.arc(current.x, current.y, pulseSize, 0, Math.PI * 2);
         ctx.fillStyle = "rgba(255, 255, 255, 0.9)";
         ctx.fill();
         
-        // Adicionar halo
+        // Add a halo
         ctx.beginPath();
         ctx.arc(current.x, current.y, pulseSize + 2, 0, Math.PI * 2);
         ctx.strokeStyle = "rgba(255, 255, 255, 0.3)";
@@ -248,7 +251,7 @@ const Home = () => {
       }
     }
     
-    // Adicionar linha central sutil
+    // Add a subtle center line
     ctx.beginPath();
     ctx.moveTo(0, centerY);
     ctx.lineTo(width, centerY);
@@ -263,14 +266,14 @@ const Home = () => {
   const handleToggleRecording = () => {
     setIsRecording(!isRecording);
     if (!isRecording) {
-      // Iniciar gravação
+      // Start recording
       startRecording();
       startVisualization();
       setRecordingStartTime(Date.now());
-      setOriginalText(""); // Limpar o texto ao iniciar nova gravação
+      setOriginalText(""); // Clear text when starting a new recording
       setTranslatedText("");
     } else {
-      // Parar gravação
+      // Stop recording
       stopRecording();
       stopVisualization();
       setRecordingStartTime(null);
@@ -279,6 +282,7 @@ const Home = () => {
 
   const startRecording = async () => {
     try {
+      // Request microphone access with specific constraints for better quality
       const stream = await navigator.mediaDevices.getUserMedia({ 
         audio: { 
           echoCancellation: true,
@@ -287,11 +291,13 @@ const Home = () => {
         } 
       });
       
+      streamRef.current = stream;
+      
       const mediaRecorder = new MediaRecorder(stream);
       mediaRecorderRef.current = mediaRecorder;
       audioChunksRef.current = [];
       
-      // Configurar reconhecimento de fala para transcrição em tempo real
+      // Configure speech recognition for real-time transcription
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
       if (SpeechRecognition) {
         const recognition = new SpeechRecognition();
@@ -304,20 +310,20 @@ const Home = () => {
         recognition.onresult = (event) => {
           let interimTranscript = '';
           
-          // Processar os resultados
+          // Process results
           for (let i = event.resultIndex; i < event.results.length; i++) {
             const transcript = event.results[i][0].transcript;
             
             if (event.results[i].isFinal) {
               finalTranscript += transcript + ' ';
-              // Traduzir o texto final
+              // Translate the final text
               translateText(transcript);
             } else {
               interimTranscript += transcript;
             }
           }
           
-          // Atualizar o texto original com texto final e intermediário
+          // Update the original text with the final and interim text
           setOriginalText(finalTranscript + interimTranscript);
         };
         
@@ -327,16 +333,16 @@ const Home = () => {
         };
         
         recognition.onend = () => {
-          // Se ainda estiver gravando, reiniciar o reconhecimento
+          // If still recording, restart recognition
           if (isRecording) {
             recognition.start();
           }
         };
         
-        // Iniciar reconhecimento
+        // Start recognition
         recognition.start();
         
-        // Armazenar a instância para poder parar depois
+        // Store the instance to stop later
         window.speechRecognitionInstance = recognition;
       } else {
         console.error('Speech recognition not supported');
@@ -350,31 +356,34 @@ const Home = () => {
       };
       
       mediaRecorder.onstop = async () => {
-        // Parar o reconhecimento de fala quando a gravação parar
+        // Stop speech recognition when recording stops
         if (window.speechRecognitionInstance) {
           window.speechRecognitionInstance.stop();
         }
+        
+        // Stop all tracks in the stream
+        if (streamRef.current) {
+          streamRef.current.getTracks().forEach(track => track.stop());
+        }
       };
       
-      // Iniciar gravação
+      // Start recording
       mediaRecorder.start(5000);
     } catch (error) {
       console.error("Error starting recording:", error);
+      setOriginalText("Error accessing microphone. Please check your browser permissions and try again.");
+      setIsRecording(false);
     }
   };
   
   const stopRecording = () => {
-    // Parar o reconhecimento de fala
+    // Stop speech recognition
     if (window.speechRecognitionInstance) {
       window.speechRecognitionInstance.stop();
     }
     
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
       mediaRecorderRef.current.stop();
-      
-      if (mediaRecorderRef.current.stream) {
-        mediaRecorderRef.current.stream.getTracks().forEach(track => track.stop());
-      }
     }
   };
 
@@ -389,106 +398,68 @@ const Home = () => {
     try {
       setIsTranslating(true);
       
-      // Simular tradução para fins de demonstração
-      setTimeout(() => {
-        // Simular resposta da API
-        let translatedText = '';
-        
-        // Tradução simulada baseada em frases comuns
-        if (text.toLowerCase().includes('hello') || text.toLowerCase().includes('hi')) {
-          translatedText = 'Olá';
-        } else if (text.toLowerCase().includes('good morning')) {
-          translatedText = 'Bom dia';
-        } else if (text.toLowerCase().includes('good afternoon')) {
-          translatedText = 'Boa tarde';
-        } else if (text.toLowerCase().includes('good evening') || text.toLowerCase().includes('good night')) {
-          translatedText = 'Boa noite';
-        } else if (text.toLowerCase().includes('how are you')) {
-          translatedText = 'Como você está?';
-        } else if (text.toLowerCase().includes('thank you') || text.toLowerCase().includes('thanks')) {
-          translatedText = 'Obrigado';
-        } else if (text.toLowerCase().includes('what is your name')) {
-          translatedText = 'Qual é o seu nome?';
-        } else if (text.toLowerCase().includes('my name is')) {
-          translatedText = 'Meu nome é' + text.substring(text.toLowerCase().indexOf('is') + 2);
-        } else {
-          // Tradução genérica para outros textos
-          translatedText = `Tradução de: "${text}"`;
-        }
-        
-        // Atualizar o texto traduzido (substituir em vez de anexar)
-        setTranslatedText(prev => {
-          // Se o texto anterior terminar com "...", remover para evitar duplicação
-          if (prev.endsWith('...')) {
-            return translatedText;
-          }
-          return prev + ' ' + translatedText;
-        });
-        
-        // Falar o texto traduzido se não estiver gravando
-        if (!isRecording) {
-          speakTranslatedText(translatedText);
-        }
-        
-        setIsTranslating(false);
-      }, 500); // Reduzir o tempo para uma resposta mais rápida
-      
-      // Código real para API do Google (comentado)
-      /*
-      const response = await fetch('https://api.gemini.ai/v1/translate', {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${apiKey}`,
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
+      // Use the translation service
+      translationService.translate(
+        {
           text: text,
-          source_language: sourceLanguage.code,
-          target_language: targetLang.code
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error(`Translation failed: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      setTranslatedText(data.translatedText);
-      
-      // Se não estiver gravando mais, falar o texto traduzido
-      if (!isRecording) {
-        speakTranslatedText(data.translatedText);
-      }
-      */
+          sourceLanguage: sourceLanguage.code,
+          targetLanguage: targetLang.code
+        },
+        // Success callback
+        (translatedText) => {
+          setTranslatedText(prev => {
+            // If previous text ends with "...", remove it to avoid duplication
+            if (prev.endsWith('...')) {
+              return translatedText;
+            }
+            return prev ? prev + ' ' + translatedText : translatedText;
+          });
+          
+          // Speak the translated text if not recording
+          if (!isRecording) {
+            speakTranslatedText(translatedText);
+          }
+          
+          setIsTranslating(false);
+        },
+        // Error callback
+        (error) => {
+          console.error("Error translating text:", error);
+          setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
+          setIsTranslating(false);
+        },
+        // Pass the API key and selected provider
+        apiKey,
+        selectedAIProvider
+      );
     } catch (error) {
       console.error("Error translating text:", error);
-      setTranslatedText("Error translating text. Please check your API key and try again.");
-    } finally {
+      setTranslatedText(prev => prev + "\nError translating text. Please check your API key and try again.");
       setIsTranslating(false);
     }
   };
 
   const speakTranslatedText = (text: string) => {
-    // Parar qualquer fala anterior
+    // Stop any previous speech
     if (speechSynthesis.speaking) {
       speechSynthesis.cancel();
     }
     
-    // Criar nova instância de fala
+    // Create a new speech instance
     const utterance = new SpeechSynthesisUtterance(text);
     speechSynthesisRef.current = utterance;
     
-    // Configurar idioma
+    // Configure the language
     utterance.lang = targetLang.code;
     
-    // Configurar voz (opcional)
+    // Configure the voice (optional)
     const voices = speechSynthesis.getVoices();
     const targetVoice = voices.find(voice => voice.lang.includes(targetLang.code));
     if (targetVoice) {
       utterance.voice = targetVoice;
     }
     
-    // Eventos
+    // Events
     utterance.onstart = () => setIsSpeaking(true);
     utterance.onend = () => setIsSpeaking(false);
     utterance.onerror = (event) => {
@@ -496,14 +467,14 @@ const Home = () => {
       setIsSpeaking(false);
     };
     
-    // Iniciar fala
+    // Start speech
     speechSynthesis.speak(utterance);
   };
 
   const handlePlayAudio = () => {
     setIsPlaying(!isPlaying);
     
-    // Se estiver tocando, parar
+    // If playing, stop
     if (isPlaying) {
       if (speechSynthesis.speaking) {
         speechSynthesis.cancel();
@@ -512,7 +483,7 @@ const Home = () => {
       return;
     }
     
-    // Se não estiver tocando, iniciar
+    // If not playing, start
     if (translatedText) {
       speakTranslatedText(translatedText);
     }
@@ -546,7 +517,7 @@ const Home = () => {
     localStorage.setItem("apiKey", key);
   };
 
-  // Formatar o tempo decorrido
+  // Format the elapsed time
   const formatTime = (milliseconds: number): string => {
     const totalSeconds = Math.floor(milliseconds / 1000);
     const minutes = Math.floor(totalSeconds / 60);
@@ -554,7 +525,31 @@ const Home = () => {
     return `${minutes.toString().padStart(2, "0")}:${seconds.toString().padStart(2, "0")}`;
   };
 
-  // Atualizar o tempo decorrido
+  // Handle PDF export
+  const handleExportPDF = async () => {
+    try {
+      // Format the current date
+      const currentDate = new Date().toLocaleDateString();
+      
+      // Create the translation data object
+      const translationData = {
+        eventName: eventName,
+        date: currentDate,
+        originalText: originalText,
+        translatedText: translatedText,
+        sourceLanguage: sourceLanguage.name,
+        targetLanguage: targetLang.name,
+        duration: elapsedTime
+      };
+      
+      // Generate the PDF
+      await generateBeautifulPDF(translationData);
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+    }
+  };
+
+  // Update the elapsed time
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
@@ -570,29 +565,31 @@ const Home = () => {
     };
   }, [isRecording, recordingStartTime]);
 
-  // Iniciar visualização
+  // Start visualization
   const startVisualization = async () => {
     try {
       if (!audioContextRef.current) {
         audioContextRef.current = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
 
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: { 
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        } 
-      });
-      streamRef.current = stream;
+      // Use the existing stream from startRecording if available
+      if (!streamRef.current) {
+        streamRef.current = await navigator.mediaDevices.getUserMedia({ 
+          audio: { 
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          } 
+        });
+      }
 
       const audioContext = audioContextRef.current;
       const analyser = audioContext.createAnalyser();
-      analyser.fftSize = 512; // Aumentar para maior precisão
-      analyser.smoothingTimeConstant = 0.8; // Suavizar as transições
+      analyser.fftSize = 512; // Increase for higher precision
+      analyser.smoothingTimeConstant = 0.8; // Smooth the transitions
       analyserRef.current = analyser;
 
-      const source = audioContext.createMediaStreamSource(stream);
+      const source = audioContext.createMediaStreamSource(streamRef.current);
       source.connect(analyser);
       sourceRef.current = source;
 
@@ -601,19 +598,17 @@ const Home = () => {
       dataArrayRef.current = dataArray;
 
       const draw = () => {
-        if (!isRecording) return;
-        
         animationRef.current = requestAnimationFrame(draw);
         
         if (!analyserRef.current || !dataArrayRef.current) return;
         
         analyserRef.current.getByteFrequencyData(dataArrayRef.current);
         
-        // Transformar os dados de frequência em dados visuais com melhor distribuição
+        // Transform the frequency data into visual data with better distribution
         const newAudioData = Array.from({ length: 64 }, (_, i) => {
-          // Usar uma distribuição logarítmica para destacar frequências baixas e médias
+          // Use a logarithmic distribution to highlight low and medium frequencies
           const index = Math.floor(Math.pow(i / 64, 1.5) * dataArrayRef.current!.length);
-          // Aplicar uma curva de resposta mais natural
+          // Apply a more natural response curve
           return Math.pow(dataArrayRef.current![index] / 255, 1.2) * 30;
         });
         
@@ -626,7 +621,7 @@ const Home = () => {
     }
   };
 
-  // Parar visualização
+  // Stop visualization
   const stopVisualization = () => {
     if (animationRef.current) {
       cancelAnimationFrame(animationRef.current);
@@ -637,17 +632,19 @@ const Home = () => {
     }
     
     if (streamRef.current) {
-      streamRef.current.getTracks().forEach((track) => track.stop());
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
     }
     
-    if (audioContextRef.current && audioContextRef.current.state !== "closed") {
-      audioContextRef.current.close();
+    if (audioContextRef.current) {
+      // Close audio context to free up resources
+      if (audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close().catch(err => console.error("Error closing audio context:", err));
+      }
+      audioContextRef.current = null;
     }
     
-    audioContextRef.current = null;
     analyserRef.current = null;
-    sourceRef.current = null;
-    streamRef.current = null;
     dataArrayRef.current = null;
   };
 
@@ -658,7 +655,7 @@ const Home = () => {
           <div className="elevenlabs-card p-6">
             <h1 className="text-2xl font-bold mb-4">{eventName}</h1>
             
-            {/* Visualizador de áudio principal no topo */}
+            {/* Main audio visualizer at the top */}
             <div className="relative w-full h-48 bg-gray-50 rounded-xl overflow-hidden mb-6">
               <canvas
                 ref={canvasRef}
@@ -680,7 +677,7 @@ const Home = () => {
             
             <div className="flex flex-col md:flex-row gap-6">
               <div className="w-full md:w-3/4 space-y-6">
-                {/* Botões de controle centralizados */}
+                {/* Centralized control buttons */}
                 <div className="flex justify-center space-x-6 mb-8">
                   <Button 
                     className="w-16 h-16 rounded-full bg-gradient-to-r from-orange-400 to-red-500 text-white hover:from-orange-500 hover:to-red-600 shadow-lg transition-all duration-300 hover:scale-105"
@@ -701,7 +698,7 @@ const Home = () => {
                   </Button>
                 </div>
                 
-                {/* Áreas de texto */}
+                {/* Text areas */}
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <div className="flex items-center justify-between">
@@ -763,7 +760,7 @@ const Home = () => {
                 </div>
               </div>
               
-              {/* Configurações ao lado */}
+              {/* Settings on the side */}
               <div className="w-full md:w-1/4 space-y-6">
                 <div className="elevenlabs-card p-4 bg-gray-50 rounded-xl">
                   <h3 className="text-lg font-medium mb-4">Settings</h3>
@@ -806,6 +803,7 @@ const Home = () => {
                     <div>
                       <Button 
                         className="w-full flex items-center justify-center space-x-2 bg-gray-200 text-gray-700 hover:bg-gray-300"
+                        onClick={handleExportPDF}
                       >
                         <FileText size={16} />
                         <span>Export to PDF</span>
